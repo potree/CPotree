@@ -124,13 +124,16 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\pmath.cpp" />
     <ClCompile Include="src\PotreeReader.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\pmath.h" />
     <ClInclude Include="include\Point.h" />
     <ClInclude Include="include\PointAttributes.h" />
     <ClInclude Include="include\PotreeReader.h" />
     <ClInclude Include="include\StandardIncludes.h" />
+    <ClInclude Include="include\stuff.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -10,9 +10,13 @@
 #include <memory>
 #include <sstream>
 #include <experimental/filesystem>
+#include <limits>
+#include <stack>
+#include <functional>
 
 namespace fs = std::experimental::filesystem;
 
+using std::stack;
 using std::to_string;
 using std::stringstream;
 using std::shared_ptr;
@@ -24,3 +28,4 @@ using std::vector;
 using std::map;
 using std::string;
 using std::chrono::steady_clock;
+using std::numeric_limits;

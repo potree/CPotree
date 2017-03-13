@@ -6,6 +6,7 @@
 #include "rapidjson/stringbuffer.h"
 
 #include "Point.h"
+#include "pmath.h"
 
 using rapidjson::Document;
 using rapidjson::Value;
@@ -42,6 +43,7 @@ public:
 struct PointAttributes{
 	
 	vector<PointAttribute> attributes;
+	int byteSize = 0;
 
 	PointAttributes(){
 
@@ -49,17 +51,13 @@ struct PointAttributes{
 
 	PointAttributes(vector<PointAttribute> attributes){
 		this->attributes = attributes;
+
+		for(auto attribute : attributes){
+			byteSize += attribute.byteSize;
+		}
 	}
 
 };
-
-struct AABB{
-
-	glm::dvec3 min;
-	glm::dvec3 max;
-
-};
-
 
 class PotreeMetadata {
 public:
@@ -141,17 +139,23 @@ public:
 struct PRNode{
 
 	bool loaded = false;
+	bool hierarchyLoaded = false;
 	int index = -1;
+	int level = 0;
+	AABB boundingBox;
 	int numPoints = 0;
 	string name = "";
 	PRNode *parent = nullptr;
-	vector<PRNode*> children = vector<PRNode*>(8, nullptr);
+	vector<PRNode*> _children = vector<PRNode*>(8, nullptr);
 	PotreeReader *reader = nullptr;
 	vector<Point> _points;
 
 	PRNode(PotreeReader *reader){
 		this->reader = reader;
 	}
+
+	vector<PRNode*> children();
+
 
 	vector<Point> points();
 
@@ -171,6 +175,7 @@ public:
 
 		root = new PRNode(this);
 		root->name = "r";
+		root->boundingBox = metadata.boundingBox;
 
 		loadHierarchy(root);
 	}
@@ -205,8 +210,19 @@ public:
 	void load(PRNode *node);
 
 	void loadHierarchy(PRNode *node){
+		if(node->hierarchyLoaded){
+			return;
+		}
+
+		node->hierarchyLoaded = true;
+
 		string fHierarchy = file + "/../data/" + getHierarchyPath(node) + "/" + node->name + ".hrc";
 		fHierarchy = fs::canonical(fHierarchy).string();
+
+		if(!fs::exists(fHierarchy)){
+			return;
+		}
+
 
 		ifstream in(fHierarchy, std::ios::binary);
 		int hierarchyByteSize = fs::file_size(fHierarchy);
@@ -231,7 +247,7 @@ public:
 				continue;
 			}
 				
-			node->children.resize(8, nullptr);
+			node->_children.resize(8, nullptr);
 
 			for(int j = 0; j < 8; j++){
 				
@@ -244,7 +260,10 @@ public:
 				child->index = j;
 				child->parent = node;
 				child->name = node->name + to_string(j);
-				node->children[j] = child;
+				child->level = node->level + 1;
+				child->boundingBox = childAABB(node->boundingBox, j);
+				child->hierarchyLoaded = (child->level % metadata.hierarchyStepSize) != 0;
+				node->_children[j] = child;
 
 				nodes.push_back(child);
 			}

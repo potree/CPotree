@@ -41,11 +41,18 @@ vector<Point> PRNode::points(){
 	return _points;
 }
 
+vector<PRNode*> PRNode::children(){
+	if(hierarchyLoaded){
+		return _children;
+	}else{
+		reader->loadHierarchy(this);
 
+		return _children;
+	}
+}
 
 
 void PotreeReader::load(PRNode *node){
-	
 	string fNode = file + "/../data/" + getHierarchyPath(node) + "/" + node->name + ".bin";
 
 	vector<char> buffer;
@@ -57,11 +64,13 @@ void PotreeReader::load(PRNode *node){
 		in.read(reinterpret_cast<char*>(&buffer[0]), byteSize);
 	}
 
+	node->numPoints = buffer.size() / metadata.pointAttributes.byteSize;
+
 	vector<Point> points;
 	points.resize(node->numPoints);
 
 	glm::dvec3 &scale = metadata.scale;
-	glm::dvec3 &min = metadata.boundingBox.min;
+	glm::dvec3 &min = node->boundingBox.min;
 	int offset = 0;
 	for(int i = 0; i < node->numPoints; i++){
 
@@ -91,6 +100,8 @@ void PotreeReader::load(PRNode *node){
 				point.color.r = colors[0];
 				point.color.g = colors[1];
 				point.color.b = colors[2];
+
+				offset += 4;
 			}
 
 		}
