@@ -102,6 +102,12 @@ void PotreeReader::load(PRNode *node){
 				point.color.b = colors[2];
 
 				offset += 4;
+			}else if(attribute == PointAttribute::INTENSITY){
+				
+				offset += 2;
+			}else if(attribute == PointAttribute::CLASSIFICATION){
+				
+				offset += 1;
 			}
 
 		}

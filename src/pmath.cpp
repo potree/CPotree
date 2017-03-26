@@ -4,6 +4,102 @@
 
 
 
+OBB::OBB(dmat4 box){
+	this->box = box;
+
+	// INITIALIZE IN LOCAL SPACE
+	vertices = {
+		{-0.5, -0.5, -0.5},
+		{-0.5, -0.5, +0.5},
+		{-0.5, +0.5, -0.5},
+		{-0.5, +0.5, +0.5},
+		{+0.5, -0.5, -0.5},
+		{+0.5, -0.5, +0.5},
+		{+0.5, +0.5, -0.5},
+		{+0.5, +0.5, +0.5}
+	};
+
+	axes = {
+		{1, 0, 0},
+		{0, 1, 0},
+		{0, 0, 1}
+	};
+
+	// TRANSFORM TO WORLD SPACE
+	for(int i = 0; i < vertices.size(); i++){
+		vertices[i] = box * glm::dvec4(vertices[i], 1.0);
+	}
+
+	for(int i = 0; i < axes.size(); i++){
+		dvec3 tOrigin = box * dvec4(0.0, 0.0, 0.0, 1.0);
+		dvec3 tAxe = box * dvec4(axes[i], 1.0);
+		axes[i] = glm::normalize(tAxe - tOrigin);
+	}
+
+	projections = {
+		{axes[0], axes[1], axes[2]},
+		{axes[1], axes[2], axes[0]},
+		{axes[2], axes[0], axes[1]},
+		{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}},
+		{{0, 1, 0}, {0, 0, 1}, {1, 0, 0}},
+		{{0, 0, 1}, {1, 0, 0}, {0, 1, 0}}
+	};
+
+	for(int i = 0; i < projections.size(); i++){
+
+		dvec2 intervall = {infinity, -infinity};
+
+		for(auto &vertex : vertices){
+			auto &proj = projections[i];
+			auto pr = project(project(vertex, proj[0]), proj[1]);
+			double pi = glm::dot(pr, proj[2]);
+		
+			intervall[0] = std::min(intervall[0], pi);
+			intervall[1] = std::max(intervall[1], pi);
+		}
+
+		projectedIntervalls.push_back(intervall);
+	}
+}
+
+
+bool OBB::intersects(AABB &aabb){
+
+	vector<dvec2> projectedIntervallsAABB;
+
+	for(int i = 0; i < projections.size(); i++){
+
+		dvec2 intervall = {infinity, -infinity};
+
+		for(auto &vertex : aabb.vertices()){
+			auto &proj = projections[i];
+			auto pr = project(project(vertex, proj[0]), proj[1]);
+			double pi = glm::dot(pr, proj[2]);
+		
+			intervall[0] = std::min(intervall[0], pi);
+			intervall[1] = std::max(intervall[1], pi);
+		}
+
+		projectedIntervallsAABB.push_back(intervall);
+	}
+
+	for(int i = 0; i < projectedIntervalls.size(); i++){
+		auto piOBB = projectedIntervalls[i];
+		auto piAABB = projectedIntervallsAABB[i];
+
+		if((piAABB[1] < piOBB[0]) || (piAABB[0] > piOBB[1])){
+			// found a gap at one of the projections => no intersection
+			return false;
+		}
+
+	}
+
+	return true;
+}
+
+
+
+
 /**
  * index bits are in xyz order
  * 100 -> x=1, y=0, z=0
@@ -35,4 +131,13 @@ AABB childAABB(AABB &aabb, int &index){
 	}
 
 	return {min, max};
+}
+
+dvec3 project(dvec3 point, dvec3 normal){
+	
+	//dvec3 np = point - normal;
+	double d = glm::dot(point, normal);
+	dvec3 projected = point - normal * d;
+
+	return projected;
 }
