@@ -6,6 +6,7 @@
 
 OBB::OBB(dmat4 box){
 	this->box = box;
+	this->boxInverse = glm::inverse(box);
 
 	// INITIALIZE IN LOCAL SPACE
 	vertices = {

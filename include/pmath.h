@@ -31,6 +31,10 @@ struct AABB{
 		return max - min;
 	}
 
+	dvec3 center(){
+		return 0.5 * max + 0.5 * min;
+	}
+
 	vector<dvec3> vertices(){
 		
 		vector<dvec3> v = {
@@ -85,6 +89,7 @@ struct AABB{
 struct OBB{
 
 	dmat4 box;
+	dmat4 boxInverse;
 	vector<dvec3> vertices;
 	vector<dvec3> axes;
 	vector<vector<dvec3>> projections;
@@ -93,6 +98,16 @@ struct OBB{
 	OBB(dmat4 box);
 
 	bool intersects(AABB &aabb);
+
+	bool inside(dvec3 &point){
+		auto p = boxInverse * dvec4(point, 1);
+
+		bool inX = -0.5 <= p.x && p.x <= 0.5;
+		bool inY = -0.5 <= p.y && p.y <= 0.5;
+		bool inZ = -0.5 <= p.z && p.z <= 0.5;
+
+		return inX && inY && inZ;
+	}
 };
 
 AABB childAABB(AABB &aabb, int &index);
