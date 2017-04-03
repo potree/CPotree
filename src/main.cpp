@@ -1,4 +1,7 @@
 
+#include <io.h>
+#include <fcntl.h>
+
 #include "StandardIncludes.h"
 
 #include "PotreeReader.h"
@@ -6,19 +9,6 @@
 
 #include "pmath.h"
 #include "stuff.h"
-
-
-struct Segment{
-	glm::dvec3 start;
-	glm::dvec3 end;
-
-};
-
-struct Profile{
-
-
-
-};
 
 
 vector<Point> getPointsInAABB(string file, glm::dvec3 min, glm::dvec3 max){
@@ -49,7 +39,7 @@ vector<Point> getPointsInAABB(string file, glm::dvec3 min, glm::dvec3 max){
 		}
 	}
 
-	cout << "intersecting nodes: " << to_string(intersectingNodes.size()) << endl;
+	//cout << "intersecting nodes: " << to_string(intersectingNodes.size()) << endl;
 
 	int pointsProcessed = 0;
 
@@ -67,9 +57,9 @@ vector<Point> getPointsInAABB(string file, glm::dvec3 min, glm::dvec3 max){
 	auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
 
 
-	cout << "points processed: " << pointsProcessed << endl;
-	cout << "points accepted: " << accepted.size() << endl;
-	cout << "duration: " << milliseconds << " milliseconds" << endl;
+	//cout << "points processed: " << pointsProcessed << endl;
+	//cout << "points accepted: " << accepted.size() << endl;
+	//cout << "duration: " << milliseconds << " milliseconds" << endl;
 
 	return accepted;
 }
@@ -83,7 +73,7 @@ vector<Point> getPointsInAABB(string file, glm::dvec3 min, glm::dvec3 max){
 /// 
 vector<Point> getPointsInBox(PotreeReader *reader, dmat4 box, int minLevel, int maxLevel){
 
-	cout << "== getPointsInBox() ==" << endl;
+	//cout << "== getPointsInBox() ==" << endl;
 
 	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 	
@@ -127,10 +117,10 @@ vector<Point> getPointsInBox(PotreeReader *reader, dmat4 box, int minLevel, int 
 	std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
 	auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
 
-	cout << "intersecting nodes: " << intersectingNodes.size() << endl;
-	cout << "points processed: " << pointsProcessed << endl;
-	cout << "points accepted: " << accepted.size() << endl;
-	cout << "duration: " << milliseconds << " milliseconds" << endl;
+	//cout << "intersecting nodes: " << intersectingNodes.size() << endl;
+	//cout << "points processed: " << pointsProcessed << endl;
+	//cout << "points accepted: " << accepted.size() << endl;
+	//cout << "duration: " << milliseconds << " milliseconds" << endl;
 
 	return accepted;
 
@@ -166,33 +156,38 @@ vector<Point> getPointsInProfile(string file, vector<dvec2> polyline, double wid
 		segments.push_back(segment);
 	}
 
+	vector<Point> accepted;
+
 	for(Segment &segment : segments){
 		auto box = segment.box;
 
-		static int count = 0;
-		string outfile = "./accepted_" + to_string(count++) + ".csv";
-
-		cout << endl;
+		//static int count = 0;
+		//string outfile = "./accepted_" + to_string(count++) + ".csv";
+		//
+		//cout << endl;
 		vector<Point> points = getPointsInBox(reader, box, minLevel, maxLevel);
-		cout << "saving result to: " << outfile << endl;
 
-		{
-			std::ofstream fout(outfile);
-			fout << std::fixed;
-			for(auto &point : points){
-				fout << point.position.x 
-					<< ", " << point.position.y
-					<< ", " << point.position.z
-					<< ", " << unsigned int(point.color.r)
-					<< ", " << unsigned int(point.color.g)
-					<< ", " << unsigned int(point.color.b)
-					<< endl;
-			}
-			fout.close();
-		}
+		accepted.insert(accepted.end(), points.begin(), points.end());
+
+		//cout << "saving result to: " << outfile << endl;
+		//
+		//{
+		//	std::ofstream fout(outfile);
+		//	fout << std::fixed;
+		//	for(auto &point : points){
+		//		fout << point.position.x 
+		//			<< ", " << point.position.y
+		//			<< ", " << point.position.z
+		//			<< ", " << unsigned int(point.color.r)
+		//			<< ", " << unsigned int(point.color.g)
+		//			<< ", " << unsigned int(point.color.b)
+		//			<< endl;
+		//	}
+		//	fout.close();
+		//}
 	}
 
-	vector<Point> accepted;
+	
 
 	return accepted;
 }
@@ -201,7 +196,9 @@ vector<Point> getPointsInProfile(string file, vector<dvec2> polyline, double wid
 
 int main(int argc, char* argv[]){
 
-	cout.imbue(std::locale(""));
+	//cout.imbue(std::locale(""));
+	std::cout.rdbuf()->pubsetbuf( 0, 0 );
+	_setmode( _fileno( stdout ),  _O_BINARY );
 
 	string file = argv[1];
 	string strPolyline = argv[2];
@@ -231,8 +228,52 @@ int main(int argc, char* argv[]){
 	int minLevel = std::stoi(strMinLevel);
 	int maxLevel = std::stoi(strMaxLevel);
 	
-	cout << endl;
+	//cout << endl;
 	vector<Point> points = getPointsInProfile(file, polyline, width, minLevel, maxLevel);
+
+	//cout << "number of points: " << points.size() << endl;
+
+
+	double scale = 0.001;
+	dvec3 min = points[0].position;
+	for(Point &p : points){
+		min.x = std::min(min.x, p.position.x);
+		min.y = std::min(min.y, p.position.y);
+		min.z = std::min(min.z, p.position.z);
+	}
+
+	
+	{
+		string header;
+		header += "{\n";
+		header += "\tnumPoints: " + to_string(points.size()) + ",\n";
+		header += "}\n";
+
+		int headerSize = header.size();
+		cout.write(reinterpret_cast<const char*>(&headerSize), 4);
+		cout.write(header.c_str(), header.size());
+	}
+
+	
+	for(Point &p : points){
+		
+		unsigned int ux = (p.position.x - min.x) / scale;
+		unsigned int uy = (p.position.y - min.y) / scale;
+		unsigned int uz = (p.position.z - min.z) / scale;
+
+		cout << 0 << ux << 0 << endl;
+	
+		cout.write(reinterpret_cast<const char *>(&ux), 4);
+		cout.write(reinterpret_cast<const char *>(&uy), 4);
+		cout.write(reinterpret_cast<const char *>(&uz), 4);
+	
+		cout.write(reinterpret_cast<const char*>(&p.color), 3);
+	
+	}
+
+
+
+
 
 
 	////string file = "D:/dev/pointclouds/converted/nvidia/cloud.js";

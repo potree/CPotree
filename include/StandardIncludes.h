@@ -2,6 +2,7 @@
 
 
 #include <vector>
+#include <unordered_map>
 #include <string>
 #include <chrono>
 #include <iostream>
@@ -13,6 +14,7 @@
 #include <limits>
 #include <stack>
 #include <functional>
+#include <regex>
 
 namespace fs = std::experimental::filesystem;
 
@@ -25,7 +27,10 @@ using std::cout;
 using std::endl;
 using std::ifstream;
 using std::vector;
+using std::unordered_map;
 using std::map;
 using std::string;
 using std::chrono::steady_clock;
 using std::numeric_limits;
+using std::getline;
+using std::cin;

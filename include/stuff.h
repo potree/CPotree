@@ -51,3 +51,55 @@ string replaceAll(const std::string& str, const std::string& from, const std::st
 
 	return tmp;
 }
+
+struct Arguments{
+
+	vector<string> args;
+
+	unordered_map<string, vector<string>> values;
+
+
+	Arguments(int argc, char* argv[]){
+		for(int i = 1; i < argc; i++){
+			args.push_back(argv[i]);
+		}
+
+		string currentKey = "";
+		for(string arg : args){
+			if(arg[0] == '-'){
+				string key = arg;
+
+				int first = key.find_first_not_of("-");
+				key = key.substr(first);
+
+				currentKey = key;
+				values[currentKey] = {};
+			}else{
+				values[currentKey].push_back(arg);
+			}
+		}
+	}
+
+	vector<string> get(string key){
+		vector<string> keys = split(key, ',');
+
+		vector<string> values;
+		for(string key : keys){
+			auto &v = this->values[key];
+			values.insert(values.end(), v.begin(), v.end());
+		}
+
+		return values;
+	}
+
+	string get(string key, int index){
+		auto values = get(key);
+
+		if(values.size() > index){
+			return values[index];
+		}else{
+			return string();
+		}
+
+	}
+};
