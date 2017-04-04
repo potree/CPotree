@@ -64,6 +64,12 @@ vector<Point> getPointsInAABB(string file, glm::dvec3 min, glm::dvec3 max){
 	return accepted;
 }
 
+struct PointsInBox{
+	vector<Point> points;
+	int pointsProcessed = 0;
+	int nodesProcessed = 0;
+};
+
 ///
 /// The box matrix maps a unit cube to the desired oriented cube.
 /// The unit cube is assumed to have a size of 1/1/1 and it is 
@@ -71,7 +77,7 @@ vector<Point> getPointsInAABB(string file, glm::dvec3 min, glm::dvec3 max){
 ///
 /// algorithm: http://www.euclideanspace.com/maths/geometry/elements/intersection/twod/index.htm
 /// 
-vector<Point> getPointsInBox(PotreeReader *reader, dmat4 box, int minLevel, int maxLevel){
+PointsInBox getPointsInBox(PotreeReader *reader, dmat4 box, int minLevel, int maxLevel){
 
 	//cout << "== getPointsInBox() ==" << endl;
 
@@ -122,11 +128,22 @@ vector<Point> getPointsInBox(PotreeReader *reader, dmat4 box, int minLevel, int 
 	//cout << "points accepted: " << accepted.size() << endl;
 	//cout << "duration: " << milliseconds << " milliseconds" << endl;
 
-	return accepted;
+	PointsInBox result;
+	result.points = accepted;
+	result.pointsProcessed = pointsProcessed;
+	result.nodesProcessed = intersectingNodes.size();
+
+	return result;
 
 }
 
-vector<Point> getPointsInProfile(string file, vector<dvec2> polyline, double width, int minLevel, int maxLevel){
+struct PointsInProfile{
+	vector<Point> points;
+	int pointsProcessed = 0;
+	int nodesProcessed = 0;
+};
+
+PointsInProfile getPointsInProfile(string file, vector<dvec2> polyline, double width, int minLevel, int maxLevel){
 
 	PotreeReader *reader = new PotreeReader(file);
 	auto bb = reader->metadata.boundingBox;
@@ -156,7 +173,7 @@ vector<Point> getPointsInProfile(string file, vector<dvec2> polyline, double wid
 		segments.push_back(segment);
 	}
 
-	vector<Point> accepted;
+	PointsInProfile result;
 
 	for(Segment &segment : segments){
 		auto box = segment.box;
@@ -165,9 +182,11 @@ vector<Point> getPointsInProfile(string file, vector<dvec2> polyline, double wid
 		//string outfile = "./accepted_" + to_string(count++) + ".csv";
 		//
 		//cout << endl;
-		vector<Point> points = getPointsInBox(reader, box, minLevel, maxLevel);
+		auto pointsInBox = getPointsInBox(reader, box, minLevel, maxLevel);
 
-		accepted.insert(accepted.end(), points.begin(), points.end());
+		result.points.insert(result.points.end(), pointsInBox.points.begin(), pointsInBox.points.end());
+		result.pointsProcessed += pointsInBox.pointsProcessed;
+		result.nodesProcessed += pointsInBox.nodesProcessed;
 
 		//cout << "saving result to: " << outfile << endl;
 		//
@@ -187,9 +206,7 @@ vector<Point> getPointsInProfile(string file, vector<dvec2> polyline, double wid
 		//}
 	}
 
-	
-
-	return accepted;
+	return result;
 }
 
 
@@ -229,8 +246,8 @@ int main(int argc, char* argv[]){
 	int maxLevel = std::stoi(strMaxLevel);
 	
 	//cout << endl;
-	vector<Point> points = getPointsInProfile(file, polyline, width, minLevel, maxLevel);
-
+	auto pointsInProfile = getPointsInProfile(file, polyline, width, minLevel, maxLevel);
+	auto &points = pointsInProfile.points;
 	//cout << "number of points: " << points.size() << endl;
 
 
@@ -252,6 +269,8 @@ int main(int argc, char* argv[]){
 		string header;
 		header += "{\n";
 		header += "\t\"points\": " + to_string(points.size()) + ",\n";
+		header += "\t\"pointsProcessed\": " + to_string(pointsInProfile.pointsProcessed) + ",\n";
+		header += "\t\"nodesProcessed\": " + to_string(pointsInProfile.nodesProcessed) + ",\n";
 
 		header += "\t\"boundingBox\": {\n";
 		header += "\t\t\"lx\": " + to_string(min.x) + ",\n";
@@ -266,17 +285,6 @@ int main(int argc, char* argv[]){
 		header += "\t\t\"POSITION_CARTESIAN\",\n";
 		header += "\t\t\"RGB\"\n";
 		header += "\t],\n";
-
-		{
-			Point p = points[0];
-			unsigned int ux = (p.position.x - min.x) / scale;
-			unsigned int uy = (p.position.y - min.y) / scale;
-			unsigned int uz = (p.position.z - min.z) / scale;
-
-			header += "\t\"x\": " + to_string(ux) + ",\n";
-			header += "\t\"y\": " + to_string(uy) + ",\n";
-			header += "\t\"z\": " + to_string(uz) + ",\n";
-		}
 
 		header += "\t\"bytesPerPoint\": " + to_string(15) + ",\n";
 		header += "\t\"scale\": " + to_string(scale) + "\n";
