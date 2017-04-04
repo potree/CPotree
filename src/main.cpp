@@ -246,7 +246,13 @@ int main(int argc, char* argv[]){
 	int maxLevel = std::stoi(strMaxLevel);
 	
 	//cout << endl;
+	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+
 	auto pointsInProfile = getPointsInProfile(file, polyline, width, minLevel, maxLevel);
+
+	std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+	auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
+
 	auto &points = pointsInProfile.points;
 	//cout << "number of points: " << points.size() << endl;
 
@@ -271,6 +277,7 @@ int main(int argc, char* argv[]){
 		header += "\t\"points\": " + to_string(points.size()) + ",\n";
 		header += "\t\"pointsProcessed\": " + to_string(pointsInProfile.pointsProcessed) + ",\n";
 		header += "\t\"nodesProcessed\": " + to_string(pointsInProfile.nodesProcessed) + ",\n";
+		header += "\t\"durationMS\": " + to_string(milliseconds) + ",\n";
 
 		header += "\t\"boundingBox\": {\n";
 		header += "\t\t\"lx\": " + to_string(min.x) + ",\n";
