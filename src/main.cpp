@@ -197,7 +197,7 @@ vector<Point> getPointsInProfile(string file, vector<dvec2> polyline, double wid
 int main(int argc, char* argv[]){
 
 	//cout.imbue(std::locale(""));
-	std::cout.rdbuf()->pubsetbuf( 0, 0 );
+	//std::cout.rdbuf()->pubsetbuf( 0, 0 );
 	_setmode( _fileno( stdout ),  _O_BINARY );
 
 	string file = argv[1];
@@ -236,17 +236,54 @@ int main(int argc, char* argv[]){
 
 	double scale = 0.001;
 	dvec3 min = points[0].position;
+	dvec3 max = points[0].position;
 	for(Point &p : points){
 		min.x = std::min(min.x, p.position.x);
 		min.y = std::min(min.y, p.position.y);
 		min.z = std::min(min.z, p.position.z);
+
+		max.x = std::max(max.x, p.position.x);
+		max.y = std::max(max.y, p.position.y);
+		max.z = std::max(max.z, p.position.z);
 	}
 
 	
 	{
 		string header;
 		header += "{\n";
-		header += "\tnumPoints: " + to_string(points.size()) + ",\n";
+		header += "\t\"points\": " + to_string(points.size()) + ",\n";
+
+		header += "\t\"boundingBox\": {\n";
+		header += "\t\t\"lx\": " + to_string(min.x) + ",\n";
+		header += "\t\t\"ly\": " + to_string(min.y) + ",\n";
+		header += "\t\t\"lz\": " + to_string(min.z) + ",\n";
+		header += "\t\t\"ux\": " + to_string(max.x) + ",\n";
+		header += "\t\t\"uy\": " + to_string(max.y) + ",\n";
+		header += "\t\t\"uz\": " + to_string(max.z) + "\n";
+		header += "\t},\n";
+
+		header += "\t\"pointAttributes\": [\n";
+		header += "\t\t\"POSITION_CARTESIAN\",\n";
+		header += "\t\t\"RGB\"\n";
+		header += "\t],\n";
+
+		{
+			Point p = points[0];
+			unsigned int ux = (p.position.x - min.x) / scale;
+			unsigned int uy = (p.position.y - min.y) / scale;
+			unsigned int uz = (p.position.z - min.z) / scale;
+
+			header += "\t\"x\": " + to_string(ux) + ",\n";
+			header += "\t\"y\": " + to_string(uy) + ",\n";
+			header += "\t\"z\": " + to_string(uz) + ",\n";
+		}
+
+		header += "\t\"bytesPerPoint\": " + to_string(15) + ",\n";
+		header += "\t\"scale\": " + to_string(scale) + "\n";
+
+		
+		
+
 		header += "}\n";
 
 		int headerSize = header.size();
@@ -260,15 +297,12 @@ int main(int argc, char* argv[]){
 		unsigned int ux = (p.position.x - min.x) / scale;
 		unsigned int uy = (p.position.y - min.y) / scale;
 		unsigned int uz = (p.position.z - min.z) / scale;
-
-		cout << 0 << ux << 0 << endl;
 	
 		cout.write(reinterpret_cast<const char *>(&ux), 4);
 		cout.write(reinterpret_cast<const char *>(&uy), 4);
 		cout.write(reinterpret_cast<const char *>(&uz), 4);
 	
 		cout.write(reinterpret_cast<const char*>(&p.color), 3);
-	
 	}
 
 
