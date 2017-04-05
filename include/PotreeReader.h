@@ -16,6 +16,7 @@ class PotreeReader;
 class PointAttribute{
 public:
 	static const PointAttribute POSITION_CARTESIAN;
+	static const PointAttribute POSITION_PROJECTED_PROFILE;
 	static const PointAttribute COLOR_PACKED;
 	static const PointAttribute INTENSITY;
 	static const PointAttribute CLASSIFICATION;
@@ -38,6 +39,10 @@ public:
 	static PointAttribute fromString(string name);
 
 };
+
+inline bool operator==(const PointAttribute& lhs, const PointAttribute& rhs){ 
+	return lhs.ordinal == rhs.ordinal;
+}
 
 
 struct PointAttributes{

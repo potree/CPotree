@@ -52,6 +52,21 @@ string replaceAll(const std::string& str, const std::string& from, const std::st
 	return tmp;
 }
 
+string join(vector<string> list, string seperator = string(", ")){
+	
+	string result;
+
+	for(int i = 0; i < list.size(); i++){
+		result += list[i];
+
+		if(i < list.size() - 1){
+			result += seperator;
+		}
+	}
+
+	return result;
+}
+
 struct Arguments{
 
 	vector<string> args;
@@ -100,6 +115,18 @@ struct Arguments{
 		}else{
 			return string();
 		}
+	}
 
+	string toString(){
+		
+		string msg = "";
+
+		for(auto item : values){
+			
+			msg += item.first + ": [" + join(item.second) + "]\n";
+
+		}
+
+		return msg;
 	}
 };

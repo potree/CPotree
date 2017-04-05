@@ -2,16 +2,19 @@
 #include "PotreeReader.h"
 
 const PointAttribute PointAttribute::POSITION_CARTESIAN		= PointAttribute(0, "POSITION_CARTESIAN",	3, 12);
-const PointAttribute PointAttribute::COLOR_PACKED			= PointAttribute(1, "COLOR_PACKED",			4, 4);
-const PointAttribute PointAttribute::INTENSITY				= PointAttribute(2, "INTENSITY",			1, 2);
-const PointAttribute PointAttribute::CLASSIFICATION			= PointAttribute(3, "CLASSIFICATION",		1, 1);
-const PointAttribute PointAttribute::NORMAL_SPHEREMAPPED	= PointAttribute(4, "NORMAL_SPHEREMAPPED",	2, 2);
-const PointAttribute PointAttribute::NORMAL_OCT16			= PointAttribute(5, "NORMAL_OCT16",			2, 2);
-const PointAttribute PointAttribute::NORMAL					= PointAttribute(6, "NORMAL",				3, 12);
+const PointAttribute PointAttribute::POSITION_PROJECTED_PROFILE	= PointAttribute(1, "POSITION_PROJECTED_PROFILE",	2, 8);
+const PointAttribute PointAttribute::COLOR_PACKED			= PointAttribute(2, "COLOR_PACKED",			4, 4);
+const PointAttribute PointAttribute::INTENSITY				= PointAttribute(3, "INTENSITY",			1, 2);
+const PointAttribute PointAttribute::CLASSIFICATION			= PointAttribute(4, "CLASSIFICATION",		1, 1);
+const PointAttribute PointAttribute::NORMAL_SPHEREMAPPED	= PointAttribute(5, "NORMAL_SPHEREMAPPED",	2, 2);
+const PointAttribute PointAttribute::NORMAL_OCT16			= PointAttribute(6, "NORMAL_OCT16",			2, 2);
+const PointAttribute PointAttribute::NORMAL					= PointAttribute(7, "NORMAL",				3, 12);
 
 PointAttribute PointAttribute::fromString(string name){
 	if(name == "POSITION_CARTESIAN"){
 		return PointAttribute::POSITION_CARTESIAN;
+	}else if(name == "POSITION_PROJECTED_PROFILE"){
+		return PointAttribute::POSITION_PROJECTED_PROFILE;
 	}else if(name == "COLOR_PACKED"){
 		return PointAttribute::COLOR_PACKED;
 	}else if(name == "INTENSITY"){
@@ -29,9 +32,9 @@ PointAttribute PointAttribute::fromString(string name){
 	throw "Invalid PointAttribute name: '" + name + "'";
 }
 
-bool operator==(const PointAttribute& lhs, const PointAttribute& rhs){ 
-	return lhs.ordinal == rhs.ordinal;
-}
+//bool operator==(const PointAttribute& lhs, const PointAttribute& rhs){ 
+//	return lhs.ordinal == rhs.ordinal;
+//}
 
 vector<Point> PRNode::points(){
 	if(!loaded){
@@ -92,24 +95,23 @@ void PotreeReader::load(PRNode *node){
 				point.position.x = x;
 				point.position.y = y;
 				point.position.z = z;
-
-				offset += 12;
 			}else if(attribute == PointAttribute::COLOR_PACKED){
 				auto colors = reinterpret_cast<unsigned char*>(&buffer[offset]);
 
 				point.color.r = colors[0];
 				point.color.g = colors[1];
 				point.color.b = colors[2];
-
-				offset += 4;
 			}else if(attribute == PointAttribute::INTENSITY){
-				
-				offset += 2;
+				auto intensity = reinterpret_cast<unsigned short*>(&buffer[offset])[0];
+
+				point.intensity = intensity;
 			}else if(attribute == PointAttribute::CLASSIFICATION){
-				
-				offset += 1;
+				auto classification = reinterpret_cast<unsigned char*>(&buffer[offset])[0];
+
+				point.classification = classification;
 			}
 
+			offset += attribute.byteSize;
 		}
 	}
 

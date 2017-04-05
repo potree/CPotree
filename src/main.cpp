@@ -10,64 +10,24 @@
 #include "pmath.h"
 #include "stuff.h"
 
+//struct PointsInBox{
+//	vector<Point> points;
+//	int pointsProcessed = 0;
+//	int nodesProcessed = 0;
+//};
 
-vector<Point> getPointsInAABB(string file, glm::dvec3 min, glm::dvec3 max){
+//struct PointsInProfile{
+//	vector<Point> points;
+//	int pointsProcessed = 0;
+//	int nodesProcessed = 0;
+//};
 
-	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-
-	PotreeReader *reader = new PotreeReader(file);
-	vector<Point> points = reader->root->points();
-
-	vector<Point> accepted;
-
-	vector<PRNode*> intersectingNodes;
-	stack<PRNode*> workload({reader->root});
-
-	AABB box = {min, max};
-
-	// nodes that intersect with box
-	while(!workload.empty()){
-		auto node = workload.top();
-		workload.pop();
-
-		intersectingNodes.push_back(node);
-
-		for(auto child : node->children()){
-			if(child != nullptr && child->boundingBox.intersects(box)){
-				workload.push(child);
-			}
-		}
-	}
-
-	//cout << "intersecting nodes: " << to_string(intersectingNodes.size()) << endl;
-
-	int pointsProcessed = 0;
-
-	for(auto node : intersectingNodes){
-		for(auto &point : node->points()){
-			pointsProcessed++;
-
-			if(box.inside(point.position)){
-				accepted.push_back(point);
-			}
-		}
-	}
-
-	std::chrono::steady_clock::time_point end= std::chrono::steady_clock::now();
-	auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
-
-
-	//cout << "points processed: " << pointsProcessed << endl;
-	//cout << "points accepted: " << accepted.size() << endl;
-	//cout << "duration: " << milliseconds << " milliseconds" << endl;
-
-	return accepted;
-}
-
-struct PointsInBox{
+struct FilterResult{
+	dmat4 box;
 	vector<Point> points;
 	int pointsProcessed = 0;
 	int nodesProcessed = 0;
+	int durationMS = 0;
 };
 
 ///
@@ -77,7 +37,7 @@ struct PointsInBox{
 ///
 /// algorithm: http://www.euclideanspace.com/maths/geometry/elements/intersection/twod/index.htm
 /// 
-PointsInBox getPointsInBox(PotreeReader *reader, dmat4 box, int minLevel, int maxLevel){
+FilterResult getPointsInBox(PotreeReader *reader, dmat4 box, int minLevel, int maxLevel){
 
 	//cout << "== getPointsInBox() ==" << endl;
 
@@ -128,7 +88,8 @@ PointsInBox getPointsInBox(PotreeReader *reader, dmat4 box, int minLevel, int ma
 	//cout << "points accepted: " << accepted.size() << endl;
 	//cout << "duration: " << milliseconds << " milliseconds" << endl;
 
-	PointsInBox result;
+	FilterResult result;
+	result.box = box;
 	result.points = accepted;
 	result.pointsProcessed = pointsProcessed;
 	result.nodesProcessed = intersectingNodes.size();
@@ -137,15 +98,8 @@ PointsInBox getPointsInBox(PotreeReader *reader, dmat4 box, int minLevel, int ma
 
 }
 
-struct PointsInProfile{
-	vector<Point> points;
-	int pointsProcessed = 0;
-	int nodesProcessed = 0;
-};
+vector<FilterResult> getPointsInProfile(PotreeReader *reader, vector<dvec2> polyline, double width, int minLevel, int maxLevel){
 
-PointsInProfile getPointsInProfile(string file, vector<dvec2> polyline, double width, int minLevel, int maxLevel){
-
-	PotreeReader *reader = new PotreeReader(file);
 	auto bb = reader->metadata.boundingBox;
 
 	struct Segment{
@@ -173,20 +127,26 @@ PointsInProfile getPointsInProfile(string file, vector<dvec2> polyline, double w
 		segments.push_back(segment);
 	}
 
-	PointsInProfile result;
+	vector<FilterResult> results;
 
 	for(Segment &segment : segments){
 		auto box = segment.box;
+		FilterResult result;
 
-		//static int count = 0;
-		//string outfile = "./accepted_" + to_string(count++) + ".csv";
-		//
-		//cout << endl;
+		std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+
 		auto pointsInBox = getPointsInBox(reader, box, minLevel, maxLevel);
 
+		std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+		auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
+
+		result.box = pointsInBox.box;
 		result.points.insert(result.points.end(), pointsInBox.points.begin(), pointsInBox.points.end());
 		result.pointsProcessed += pointsInBox.pointsProcessed;
 		result.nodesProcessed += pointsInBox.nodesProcessed;
+		result.durationMS = milliseconds;
+
+		results.push_back(result);
 
 		//cout << "saving result to: " << outfile << endl;
 		//
@@ -206,9 +166,149 @@ PointsInProfile getPointsInProfile(string file, vector<dvec2> polyline, double w
 		//}
 	}
 
-	return result;
+	return results;
 }
 
+void writeToDisk(){
+
+}
+
+void writeToSTDOUT(PotreeReader *reader, vector<FilterResult> results){
+
+	double scale = 0.001;
+
+	dvec3 min = {infinity, infinity, infinity};
+	dvec3 max = {-infinity, -infinity, -infinity};
+	int pointsAccepted = 0;
+	int pointsProcessed = 0;
+	int nodesProcessed = 0;
+	int durationMS = 0;
+
+	for(auto &result : results){
+
+		pointsAccepted += result.points.size();
+		pointsProcessed += result.pointsProcessed;
+		nodesProcessed += result.nodesProcessed;
+		durationMS += result.durationMS;
+
+		for(auto &p : result.points){
+			min.x = std::min(min.x, p.position.x);
+			min.y = std::min(min.y, p.position.y);
+			min.z = std::min(min.z, p.position.z);
+
+			max.x = std::max(max.x, p.position.x);
+			max.y = std::max(max.y, p.position.y);
+			max.z = std::max(max.z, p.position.z);
+		}
+	}
+
+	auto attributes = reader->metadata.pointAttributes.attributes;
+	attributes.push_back(PointAttribute::POSITION_PROJECTED_PROFILE);
+	auto pointAttributes = PointAttributes(attributes);
+
+	{ // HEADER
+		string header;
+		header += "{\n";
+		header += "\t\"points\": " + to_string(pointsAccepted) + ",\n";
+		header += "\t\"pointsProcessed\": " + to_string(pointsProcessed) + ",\n";
+		header += "\t\"nodesProcessed\": " + to_string(nodesProcessed) + ",\n";
+		header += "\t\"durationMS\": " + to_string(durationMS) + ",\n";
+
+		header += "\t\"boundingBox\": {\n";
+		header += "\t\t\"lx\": " + to_string(min.x) + ",\n";
+		header += "\t\t\"ly\": " + to_string(min.y) + ",\n";
+		header += "\t\t\"lz\": " + to_string(min.z) + ",\n";
+		header += "\t\t\"ux\": " + to_string(max.x) + ",\n";
+		header += "\t\t\"uy\": " + to_string(max.y) + ",\n";
+		header += "\t\t\"uz\": " + to_string(max.z) + "\n";
+		header += "\t},\n";
+
+		header += "\t\"pointAttributes\": [\n";
+
+		for(int i = 0; i < attributes.size(); i++){
+			auto attribute = attributes[i];
+			header += "\t\t\"" + attribute.name + "\"";
+
+			if(i < attributes.size() - 1){
+				header += ",\n";
+			}else{
+				header += "\n";
+			}
+			
+		}
+
+		//header += "\t\t\"POSITION_CARTESIAN\",\n";
+		//header += "\t\t\"RGB\"\n";
+
+		header += "\t],\n";
+
+		header += "\t\"bytesPerPoint\": " + to_string(pointAttributes.byteSize) + ",\n";
+		header += "\t\"scale\": " + to_string(scale) + "\n";
+
+		header += "}\n";
+
+		int headerSize = header.size();
+		cout.write(reinterpret_cast<const char*>(&headerSize), 4);
+		cout.write(header.c_str(), header.size());
+	}
+	
+	double mileage = 0.0;
+	for(auto &result : results){
+
+		dmat4 box = result.box;
+		OBB obb(box);
+		dvec3 localMin = dvec3(box * dvec4(-0.5, -0.5, -0.5, 1.0));
+		dvec3 lvx = dvec3(box * dvec4(+0.5, -0.5, -0.5, 1.0)) - localMin;
+		//dvec3 lvy = dvec3(box * dvec4(-0.5, +0.5, -0.5, 1.0)) - localMin;
+		//dvec3 lvz = dvec3(box * dvec4(-0.5, -0.5, +0.5, 1.0)) - localMin;
+
+		for(Point &p : result.points){
+			for(auto attribute : pointAttributes.attributes){
+
+				if(attribute == PointAttribute::POSITION_CARTESIAN){
+					unsigned int ux = (p.position.x - min.x) / scale;
+					unsigned int uy = (p.position.y - min.y) / scale;
+					unsigned int uz = (p.position.z - min.z) / scale;
+	
+					cout.write(reinterpret_cast<const char *>(&ux), 4);
+					cout.write(reinterpret_cast<const char *>(&uy), 4);
+					cout.write(reinterpret_cast<const char *>(&uz), 4);
+				}else if(attribute == PointAttribute::POSITION_PROJECTED_PROFILE){
+					
+					
+					dvec3 lp = p.position - localMin;
+
+					double dx = glm::dot(lp, obb.axes[0]) + mileage;
+					double dy = glm::dot(lp, obb.axes[1]);
+					double dz = glm::dot(lp, obb.axes[2]);
+					
+					unsigned int ux = dx / scale;
+					//unsigned int uy = dy / scale;
+					unsigned int uz = dz / scale;
+
+					cout.write(reinterpret_cast<const char *>(&ux), 4);
+					//cout.write(reinterpret_cast<const char *>(&uy), 4);
+					cout.write(reinterpret_cast<const char *>(&uz), 4);
+				}else if(attribute == PointAttribute::COLOR_PACKED){
+					cout.write(reinterpret_cast<const char*>(&p.color), 3);
+					char value = 0;
+					cout.write(reinterpret_cast<const char*>(&value), 1);
+				}else if(attribute == PointAttribute::INTENSITY){
+					cout.write(reinterpret_cast<const char*>(&p.intensity), sizeof(p.intensity));
+				}else if(attribute == PointAttribute::CLASSIFICATION){
+					cout.write(reinterpret_cast<const char*>(&p.classification), sizeof(p.classification));
+				}else{
+					static long long int filler = 0;
+					cout.write(reinterpret_cast<const char*>(&filler), attribute.byteSize);
+				}
+
+			}
+
+		}
+
+		mileage += glm::length(lvx);
+	}
+}
 
 
 int main(int argc, char* argv[]){
@@ -246,79 +346,20 @@ int main(int argc, char* argv[]){
 	int maxLevel = std::stoi(strMaxLevel);
 	
 	//cout << endl;
-	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+	//std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
-	auto pointsInProfile = getPointsInProfile(file, polyline, width, minLevel, maxLevel);
+	PotreeReader *reader = new PotreeReader(file);
 
-	std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-	auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
+	auto results = getPointsInProfile(reader, polyline, width, minLevel, maxLevel);
 
-	auto &points = pointsInProfile.points;
+	//std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+	//auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
+
+	//auto &points = pointsInProfile.points;
 	//cout << "number of points: " << points.size() << endl;
 
 
-	double scale = 0.001;
-	dvec3 min = points[0].position;
-	dvec3 max = points[0].position;
-	for(Point &p : points){
-		min.x = std::min(min.x, p.position.x);
-		min.y = std::min(min.y, p.position.y);
-		min.z = std::min(min.z, p.position.z);
-
-		max.x = std::max(max.x, p.position.x);
-		max.y = std::max(max.y, p.position.y);
-		max.z = std::max(max.z, p.position.z);
-	}
-
-	
-	{
-		string header;
-		header += "{\n";
-		header += "\t\"points\": " + to_string(points.size()) + ",\n";
-		header += "\t\"pointsProcessed\": " + to_string(pointsInProfile.pointsProcessed) + ",\n";
-		header += "\t\"nodesProcessed\": " + to_string(pointsInProfile.nodesProcessed) + ",\n";
-		header += "\t\"durationMS\": " + to_string(milliseconds) + ",\n";
-
-		header += "\t\"boundingBox\": {\n";
-		header += "\t\t\"lx\": " + to_string(min.x) + ",\n";
-		header += "\t\t\"ly\": " + to_string(min.y) + ",\n";
-		header += "\t\t\"lz\": " + to_string(min.z) + ",\n";
-		header += "\t\t\"ux\": " + to_string(max.x) + ",\n";
-		header += "\t\t\"uy\": " + to_string(max.y) + ",\n";
-		header += "\t\t\"uz\": " + to_string(max.z) + "\n";
-		header += "\t},\n";
-
-		header += "\t\"pointAttributes\": [\n";
-		header += "\t\t\"POSITION_CARTESIAN\",\n";
-		header += "\t\t\"RGB\"\n";
-		header += "\t],\n";
-
-		header += "\t\"bytesPerPoint\": " + to_string(15) + ",\n";
-		header += "\t\"scale\": " + to_string(scale) + "\n";
-
-		
-		
-
-		header += "}\n";
-
-		int headerSize = header.size();
-		cout.write(reinterpret_cast<const char*>(&headerSize), 4);
-		cout.write(header.c_str(), header.size());
-	}
-
-	
-	for(Point &p : points){
-		
-		unsigned int ux = (p.position.x - min.x) / scale;
-		unsigned int uy = (p.position.y - min.y) / scale;
-		unsigned int uz = (p.position.z - min.z) / scale;
-	
-		cout.write(reinterpret_cast<const char *>(&ux), 4);
-		cout.write(reinterpret_cast<const char *>(&uy), 4);
-		cout.write(reinterpret_cast<const char *>(&uz), 4);
-	
-		cout.write(reinterpret_cast<const char*>(&p.color), 3);
-	}
+	writeToSTDOUT(reader, results);
 
 
 
