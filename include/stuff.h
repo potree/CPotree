@@ -95,8 +95,29 @@ struct Arguments{
 		}
 	}
 
-	vector<string> get(string key){
+	vector<string> keyToKeys(string key){
 		vector<string> keys = split(key, ',');
+		if(keys.size() == 0){
+			keys = {key};
+		}
+
+		return keys;
+	}
+
+	bool hasKey(string key){
+		auto keys = keyToKeys(key);
+
+		for(string k : keys){
+			if(values.find(k) != values.end()){
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	vector<string> get(string key){
+		auto keys = keyToKeys(key);
 
 		vector<string> values;
 		for(string key : keys){
@@ -117,6 +138,40 @@ struct Arguments{
 		}
 	}
 
+	string get(string key, int index, string default){
+		auto values = get(key);
+
+		if(values.size() > index){
+			return values[index];
+		}else{
+			return default;
+		}
+	}
+
+	double getDouble(string key, int index){
+		auto values = get(key);
+
+		if(values.size() > index){
+			double value = std::stod(values[index]);
+
+			return value;
+		}else{
+			return 0.0;
+		}
+	}
+
+	double getInt(string key, int index){
+		auto values = get(key);
+
+		if(values.size() > index){
+			int value = std::stoi(values[index]);
+
+			return value;
+		}else{
+			return 0.0;
+		}
+	}
+
 	string toString(){
 		
 		string msg = "";
@@ -129,4 +184,46 @@ struct Arguments{
 
 		return msg;
 	}
+};
+
+class Timer{
+public:
+
+	string name;
+
+	std::chrono::steady_clock::time_point begin;
+	std::chrono::steady_clock::time_point end;
+
+	Timer(string name){
+		this->name = name;
+	}
+	
+	Timer& start(){
+		begin = std::chrono::steady_clock::now();
+
+		return *this;
+	}
+
+	Timer& stop(){
+		end = std::chrono::steady_clock::now();
+
+		return *this;
+	}
+
+	long long getMilli(){
+		return std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
+	}
+
+	long long getMicro(){
+		return std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
+	}
+
+	double getSeconds(){
+		auto micro = std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count();
+
+		auto seconds = double(micro) / 1'000'000.0;
+
+		return seconds;
+	}
+
 };

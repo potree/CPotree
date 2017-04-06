@@ -38,11 +38,6 @@ struct FilterResult{
 /// algorithm: http://www.euclideanspace.com/maths/geometry/elements/intersection/twod/index.htm
 /// 
 FilterResult getPointsInBox(PotreeReader *reader, dmat4 box, int minLevel, int maxLevel){
-
-	//cout << "== getPointsInBox() ==" << endl;
-
-	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-	
 	OBB obb(box);
 	
 	vector<PRNode*> intersectingNodes;
@@ -79,14 +74,6 @@ FilterResult getPointsInBox(PotreeReader *reader, dmat4 box, int minLevel, int m
 			}
 		}
 	}
-
-	std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-	auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
-
-	//cout << "intersecting nodes: " << intersectingNodes.size() << endl;
-	//cout << "points processed: " << pointsProcessed << endl;
-	//cout << "points accepted: " << accepted.size() << endl;
-	//cout << "duration: " << milliseconds << " milliseconds" << endl;
 
 	FilterResult result;
 	result.box = box;
@@ -133,47 +120,25 @@ vector<FilterResult> getPointsInProfile(PotreeReader *reader, vector<dvec2> poly
 		auto box = segment.box;
 		FilterResult result;
 
-		std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+		Timer t = Timer("points in box").start();
 
 		auto pointsInBox = getPointsInBox(reader, box, minLevel, maxLevel);
 
-		std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-		auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
+		t.stop();
 
 		result.box = pointsInBox.box;
 		result.points.insert(result.points.end(), pointsInBox.points.begin(), pointsInBox.points.end());
 		result.pointsProcessed += pointsInBox.pointsProcessed;
 		result.nodesProcessed += pointsInBox.nodesProcessed;
-		result.durationMS = milliseconds;
+		result.durationMS = t.getMilli();
 
 		results.push_back(result);
-
-		//cout << "saving result to: " << outfile << endl;
-		//
-		//{
-		//	std::ofstream fout(outfile);
-		//	fout << std::fixed;
-		//	for(auto &point : points){
-		//		fout << point.position.x 
-		//			<< ", " << point.position.y
-		//			<< ", " << point.position.z
-		//			<< ", " << unsigned int(point.color.r)
-		//			<< ", " << unsigned int(point.color.g)
-		//			<< ", " << unsigned int(point.color.b)
-		//			<< endl;
-		//	}
-		//	fout.close();
-		//}
 	}
 
 	return results;
 }
 
-void writeToDisk(){
-
-}
-
-void writeToSTDOUT(PotreeReader *reader, vector<FilterResult> results){
+void savePotree(PotreeReader *reader, vector<FilterResult> results, PointAttributes pointAttributes, ostream *out){
 
 	double scale = 0.001;
 
@@ -202,9 +167,9 @@ void writeToSTDOUT(PotreeReader *reader, vector<FilterResult> results){
 		}
 	}
 
-	auto attributes = reader->metadata.pointAttributes.attributes;
-	attributes.push_back(PointAttribute::POSITION_PROJECTED_PROFILE);
-	auto pointAttributes = PointAttributes(attributes);
+	//auto attributes = reader->metadata.pointAttributes.attributes;
+	//attributes.push_back(PointAttribute::POSITION_PROJECTED_PROFILE);
+	//auto pointAttributes = PointAttributes(attributes);
 
 	{ // HEADER
 		string header;
@@ -214,6 +179,7 @@ void writeToSTDOUT(PotreeReader *reader, vector<FilterResult> results){
 		header += "\t\"nodesProcessed\": " + to_string(nodesProcessed) + ",\n";
 		header += "\t\"durationMS\": " + to_string(durationMS) + ",\n";
 
+		// BOUNDING BOX
 		header += "\t\"boundingBox\": {\n";
 		header += "\t\t\"lx\": " + to_string(min.x) + ",\n";
 		header += "\t\t\"ly\": " + to_string(min.y) + ",\n";
@@ -223,22 +189,27 @@ void writeToSTDOUT(PotreeReader *reader, vector<FilterResult> results){
 		header += "\t\t\"uz\": " + to_string(max.z) + "\n";
 		header += "\t},\n";
 
+		{ // SEGMENTS
+			//header += "\t\"segments\": {\n";
+			//for(auto &result : results){
+			//	
+			//}
+			//header += "\t},\n";
+		}
+
 		header += "\t\"pointAttributes\": [\n";
 
-		for(int i = 0; i < attributes.size(); i++){
-			auto attribute = attributes[i];
+		for(int i = 0; i < pointAttributes.attributes.size(); i++){
+			auto attribute = pointAttributes.attributes[i];
 			header += "\t\t\"" + attribute.name + "\"";
 
-			if(i < attributes.size() - 1){
+			if(i < pointAttributes.attributes.size() - 1){
 				header += ",\n";
 			}else{
 				header += "\n";
 			}
 			
 		}
-
-		//header += "\t\t\"POSITION_CARTESIAN\",\n";
-		//header += "\t\t\"RGB\"\n";
 
 		header += "\t],\n";
 
@@ -248,8 +219,8 @@ void writeToSTDOUT(PotreeReader *reader, vector<FilterResult> results){
 		header += "}\n";
 
 		int headerSize = header.size();
-		cout.write(reinterpret_cast<const char*>(&headerSize), 4);
-		cout.write(header.c_str(), header.size());
+		out->write(reinterpret_cast<const char*>(&headerSize), 4);
+		out->write(header.c_str(), header.size());
 	}
 	
 	double mileage = 0.0;
@@ -270,36 +241,36 @@ void writeToSTDOUT(PotreeReader *reader, vector<FilterResult> results){
 					unsigned int uy = (p.position.y - min.y) / scale;
 					unsigned int uz = (p.position.z - min.z) / scale;
 	
-					cout.write(reinterpret_cast<const char *>(&ux), 4);
-					cout.write(reinterpret_cast<const char *>(&uy), 4);
-					cout.write(reinterpret_cast<const char *>(&uz), 4);
+					out->write(reinterpret_cast<const char *>(&ux), 4);
+					out->write(reinterpret_cast<const char *>(&uy), 4);
+					out->write(reinterpret_cast<const char *>(&uz), 4);
 				}else if(attribute == PointAttribute::POSITION_PROJECTED_PROFILE){
-					
-					
 					dvec3 lp = p.position - localMin;
 
 					double dx = glm::dot(lp, obb.axes[0]) + mileage;
-					double dy = glm::dot(lp, obb.axes[1]);
+					//double dy = glm::dot(lp, obb.axes[1]);
 					double dz = glm::dot(lp, obb.axes[2]);
 					
 					unsigned int ux = dx / scale;
 					//unsigned int uy = dy / scale;
 					unsigned int uz = dz / scale;
 
-					cout.write(reinterpret_cast<const char *>(&ux), 4);
+					out->write(reinterpret_cast<const char *>(&ux), 4);
 					//cout.write(reinterpret_cast<const char *>(&uy), 4);
-					cout.write(reinterpret_cast<const char *>(&uz), 4);
+					out->write(reinterpret_cast<const char *>(&uz), 4);
 				}else if(attribute == PointAttribute::COLOR_PACKED){
-					cout.write(reinterpret_cast<const char*>(&p.color), 3);
+					out->write(reinterpret_cast<const char*>(&p.color), 3);
 					char value = 0;
-					cout.write(reinterpret_cast<const char*>(&value), 1);
+					out->write(reinterpret_cast<const char*>(&value), 1);
+				}else if(attribute == PointAttribute::RGB){
+					out->write(reinterpret_cast<const char*>(&p.color), 3);
 				}else if(attribute == PointAttribute::INTENSITY){
-					cout.write(reinterpret_cast<const char*>(&p.intensity), sizeof(p.intensity));
+					out->write(reinterpret_cast<const char*>(&p.intensity), sizeof(p.intensity));
 				}else if(attribute == PointAttribute::CLASSIFICATION){
-					cout.write(reinterpret_cast<const char*>(&p.classification), sizeof(p.classification));
+					out->write(reinterpret_cast<const char*>(&p.classification), sizeof(p.classification));
 				}else{
 					static long long int filler = 0;
-					cout.write(reinterpret_cast<const char*>(&filler), attribute.byteSize);
+					out->write(reinterpret_cast<const char*>(&filler), attribute.byteSize);
 				}
 
 			}
@@ -310,18 +281,195 @@ void writeToSTDOUT(PotreeReader *reader, vector<FilterResult> results){
 	}
 }
 
+void saveLAS(PotreeReader *reader, vector<FilterResult> results, PointAttributes attributes, ostream *out){
+	//*out << "creating a las file";
+
+	unsigned int numPoints = 0;
+	for(auto &result : results){
+		numPoints += result.points.size();
+	}
+
+	vector<char> zeroes = vector<char>(8, 0);
+
+	out->write("LASF", 4);			// File Signature
+	out->write(zeroes.data(), 2);	// File Source ID
+	out->write(zeroes.data(), 2);	// Global Encoding
+	out->write(zeroes.data(), 4);	// Project ID data 1
+	out->write(zeroes.data(), 2);	// Project ID data 2
+	out->write(zeroes.data(), 2);	// Project ID data 3
+	out->write(zeroes.data(), 8);	// Project ID data 4
+
+	// Version Major
+	char versionMajor = 1;
+	out->write(reinterpret_cast<const char*>(&versionMajor), 1);				
+
+	// Version Minor
+	char versionMinor = 2;
+	out->write(reinterpret_cast<const char*>(&versionMinor), 1);				
+
+	out->write("PotreeElevationProfile          ", 32);	// System Identifier
+	out->write("PotreeElevationProfile          ", 32); // Generating Software
+
+	// File Creation Day of Year
+	unsigned short day = 0;
+	out->write(reinterpret_cast<const char*>(&day), 2);	
+
+	// File Creation Year
+	unsigned short year = 0;
+	out->write(reinterpret_cast<const char*>(&year), 2);	
+
+	// Header Size
+	unsigned short headerSize = 227;
+	out->write(reinterpret_cast<const char*>(&headerSize), 2);	
+
+	// Offset to point data
+	unsigned long offsetToData = 227;
+	out->write(reinterpret_cast<const char*>(&offsetToData), 4);	
+
+	// Number variable length records
+	out->write(zeroes.data(), 4);	
+
+	// Point Data Record Format
+	unsigned char pointFormat = 2;
+	out->write(reinterpret_cast<const char*>(&pointFormat), 1);	
+
+	// Point Data Record Length
+	unsigned short pointRecordLength = 26;
+	out->write(reinterpret_cast<const char*>(&pointRecordLength), 2);	
+
+	// Number of points
+	out->write(reinterpret_cast<const char*>(&numPoints), 4);
+
+	// Number of points by return 0 - 4
+	out->write(reinterpret_cast<const char*>(&numPoints), 4);
+	out->write(zeroes.data(), 4);
+	out->write(zeroes.data(), 4);
+	out->write(zeroes.data(), 4);
+	out->write(zeroes.data(), 4);
+
+	// XYZ scale factors
+	dvec3 scale = reader->metadata.scale;
+	out->write(reinterpret_cast<const char*>(&scale), 3 * 8);
+
+	// XYZ OFFSETS
+	dvec3 offsets = reader->metadata.boundingBox.min;
+	out->write(reinterpret_cast<const char*>(&offsets), 3 * 8);
+
+	// MAX X, MIN X, MAX Y, MIN Y, MAX Z, MIN Z
+	auto bb = reader->metadata.boundingBox;
+	out->write(reinterpret_cast<const char*>(&bb.max.x), 8);
+	out->write(reinterpret_cast<const char*>(&bb.min.x), 8);
+	out->write(reinterpret_cast<const char*>(&bb.max.y), 8);
+	out->write(reinterpret_cast<const char*>(&bb.min.y), 8);
+	out->write(reinterpret_cast<const char*>(&bb.max.z), 8);
+	out->write(reinterpret_cast<const char*>(&bb.min.z), 8);
+
+	vector<char> buffer(pointRecordLength, 0);
+
+	for(auto &result : results){
+	
+		dmat4 box = result.box;
+		OBB obb(box);
+		dvec3 localMin = dvec3(box * dvec4(-0.5, -0.5, -0.5, 1.0));
+		dvec3 lvx = dvec3(box * dvec4(+0.5, -0.5, -0.5, 1.0)) - localMin;
+	
+	
+	
+		for(Point &p : result.points){
+	
+			int *ixyz = reinterpret_cast<int*>(&buffer[0]);
+			unsigned short *intensity = reinterpret_cast<unsigned short*>(&buffer[12]);
+			unsigned short *rgb = reinterpret_cast<unsigned short*>(&buffer[20]);
+	
+			ixyz[0] = (p.position.x - bb.min.x) / scale.x;
+			ixyz[1] = (p.position.y - bb.min.y) / scale.y;
+			ixyz[2] = (p.position.z - bb.min.z) / scale.z;
+	
+			intensity[0] = p.intensity;
+	
+			rgb[0] = p.color.r;
+			rgb[1] = p.color.g;
+			rgb[2] = p.color.b;
+	
+			out->write(buffer.data(), pointRecordLength);
+		}
+	}
+
+	out->flush();
+
+
+
+
+
+
+
+}
+
+void save(PotreeReader *reader, vector<FilterResult> results, Arguments args){
+
+	ostream *out = nullptr;
+
+	if(args.hasKey("stdout")){
+		out = &cout;
+	}else if(args.hasKey("o")){
+		string file = args.get("o", 0);
+
+		out = new ofstream(file, std::ios::binary);
+	}else{
+		cerr << "ERROR: No output specified. Either -o <file> or --stdout have to be specified";
+	}
+
+	vector<PointAttribute> attributes;
+	if(args.hasKey("output-attributes")){
+		auto latt = args.get("output-attributes");
+
+		for(string att : latt){
+			auto attribute = PointAttribute::fromString(att);
+			attributes.push_back(attribute);
+		}
+
+	}else{
+		attributes = reader->metadata.pointAttributes.attributes;
+		attributes.push_back(PointAttribute::POSITION_PROJECTED_PROFILE);
+	}
+	
+	auto pointAttributes = PointAttributes(attributes);
+
+	string outFormat = args.get("output-format", 0, "POTREE");
+
+	if(outFormat == "POTREE"){
+		savePotree(reader, results, pointAttributes, out);
+	}else if(outFormat == "LAS"){
+		saveLAS(reader, results, pointAttributes, out);
+	}if(outFormat == "CSV"){
+		//saveCSV();
+		// TODO
+	}
+
+	out->flush();
+	if(args.hasKey("o")){
+		dynamic_cast<ofstream*>(out)->close();
+		delete out;
+	}
+}
 
 int main(int argc, char* argv[]){
 
 	//cout.imbue(std::locale(""));
 	//std::cout.rdbuf()->pubsetbuf( 0, 0 );
-	_setmode( _fileno( stdout ),  _O_BINARY );
 
-	string file = argv[1];
-	string strPolyline = argv[2];
-	string strWidth = argv[3];
-	string strMinLevel = argv[4];
-	string strMaxLevel = argv[5];
+	Arguments args(argc, argv);
+
+	if(args.hasKey("stdout")){
+		_setmode( _fileno( stdout ),  _O_BINARY );
+	}
+	
+	
+	string file = args.get("", 0);
+	string strPolyline = args.get("coordinates", 0);
+	double width = args.getDouble("width", 0);
+	int minLevel = args.getInt("min-level", 0);
+	int maxLevel = args.getInt("max-level", 0);
 
 	vector<dvec2> polyline;
 	{
@@ -340,45 +488,14 @@ int main(int argc, char* argv[]){
 			polyline.push_back({x, y});
 		}
 	}
-
-	double width = std::stod(strWidth);
-	int minLevel = std::stoi(strMinLevel);
-	int maxLevel = std::stoi(strMaxLevel);
 	
-	//cout << endl;
-	//std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-
 	PotreeReader *reader = new PotreeReader(file);
 
 	auto results = getPointsInProfile(reader, polyline, width, minLevel, maxLevel);
 
-	//std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-	//auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();
+	save(reader, results, args);
 
-	//auto &points = pointsInProfile.points;
-	//cout << "number of points: " << points.size() << endl;
-
-
-	writeToSTDOUT(reader, results);
-
-
-
-
-
-
-	////string file = "D:/dev/pointclouds/converted/nvidia/cloud.js";
-	//string file = "D:/dev/pointclouds/converted/CA13/cloud.js";
-	//PotreeReader *reader = new PotreeReader(file);
-	//
-	//// CA13
-	//vector<dvec2> polyline = {
-	//	{693'550.968, 3'915'914.169},
-	//	{693'890.618, 3'916'387.819},
-	//	{694'584.820, 3'916'458.180},
-	//	{694'786.239, 3'916'307.199}};
-	//getPointsInProfile(file, polyline, 14.0, 0, 6);
-
-
+	cout.flush();
 
 	return 0;
 }

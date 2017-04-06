@@ -18,6 +18,7 @@ public:
 	static const PointAttribute POSITION_CARTESIAN;
 	static const PointAttribute POSITION_PROJECTED_PROFILE;
 	static const PointAttribute COLOR_PACKED;
+	static const PointAttribute RGB;
 	static const PointAttribute INTENSITY;
 	static const PointAttribute CLASSIFICATION;
 	static const PointAttribute NORMAL_SPHEREMAPPED;

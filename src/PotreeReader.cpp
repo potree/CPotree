@@ -4,11 +4,12 @@
 const PointAttribute PointAttribute::POSITION_CARTESIAN		= PointAttribute(0, "POSITION_CARTESIAN",	3, 12);
 const PointAttribute PointAttribute::POSITION_PROJECTED_PROFILE	= PointAttribute(1, "POSITION_PROJECTED_PROFILE",	2, 8);
 const PointAttribute PointAttribute::COLOR_PACKED			= PointAttribute(2, "COLOR_PACKED",			4, 4);
-const PointAttribute PointAttribute::INTENSITY				= PointAttribute(3, "INTENSITY",			1, 2);
-const PointAttribute PointAttribute::CLASSIFICATION			= PointAttribute(4, "CLASSIFICATION",		1, 1);
-const PointAttribute PointAttribute::NORMAL_SPHEREMAPPED	= PointAttribute(5, "NORMAL_SPHEREMAPPED",	2, 2);
-const PointAttribute PointAttribute::NORMAL_OCT16			= PointAttribute(6, "NORMAL_OCT16",			2, 2);
-const PointAttribute PointAttribute::NORMAL					= PointAttribute(7, "NORMAL",				3, 12);
+const PointAttribute PointAttribute::RGB					= PointAttribute(3, "RGB",					3, 3);
+const PointAttribute PointAttribute::INTENSITY				= PointAttribute(4, "INTENSITY",			1, 2);
+const PointAttribute PointAttribute::CLASSIFICATION			= PointAttribute(5, "CLASSIFICATION",		1, 1);
+const PointAttribute PointAttribute::NORMAL_SPHEREMAPPED	= PointAttribute(6, "NORMAL_SPHEREMAPPED",	2, 2);
+const PointAttribute PointAttribute::NORMAL_OCT16			= PointAttribute(7, "NORMAL_OCT16",			2, 2);
+const PointAttribute PointAttribute::NORMAL					= PointAttribute(8, "NORMAL",				3, 12);
 
 PointAttribute PointAttribute::fromString(string name){
 	if(name == "POSITION_CARTESIAN"){
@@ -17,6 +18,8 @@ PointAttribute PointAttribute::fromString(string name){
 		return PointAttribute::POSITION_PROJECTED_PROFILE;
 	}else if(name == "COLOR_PACKED"){
 		return PointAttribute::COLOR_PACKED;
+	}else if(name == "RGB"){
+		return PointAttribute::RGB;
 	}else if(name == "INTENSITY"){
 		return PointAttribute::INTENSITY;
 	}else if(name == "CLASSIFICATION"){
