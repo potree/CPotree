@@ -35,6 +35,15 @@ string trim(const string& s, string tokens){
 	return tmp;
 }
 
+// from: http://stackoverflow.com/questions/874134/find-if-string-ends-with-another-string-in-c
+bool endsWith(string const &fullString, string const &ending) {
+    if (fullString.length() >= ending.length()) {
+        return (0 == fullString.compare (fullString.length() - ending.length(), ending.length(), ending));
+    } else {
+        return false;
+    }
+}
+
 // http://stackoverflow.com/questions/3418231/replace-part-of-a-string-with-another-string
 string replaceAll(const std::string& str, const std::string& from, const std::string& to) {
 	string tmp = str;

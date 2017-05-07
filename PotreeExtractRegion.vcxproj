@@ -19,10 +19,10 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{383BF6B6-5EF7-4161-9754-AF54E608912F}</ProjectGuid>
+    <ProjectGuid>{383BF6B6-5EF7-4161-9754-AF54E608913F}</ProjectGuid>
     <RootNamespace>CPotree</RootNamespace>
     <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
-    <ProjectName>PotreeElevationProfile</ProjectName>
+    <ProjectName>PotreeExtractRegion</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -132,7 +132,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\main_elevation_profile.cpp" />
+    <ClCompile Include="src\main_extract_region.cpp" />
     <ClCompile Include="src\pmath.cpp" />
     <ClCompile Include="src\PotreeReader.cpp" />
     <ClCompile Include="src\test.cpp" />
