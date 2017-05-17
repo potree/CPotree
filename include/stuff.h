@@ -169,7 +169,7 @@ struct Arguments{
 		}
 	}
 
-	double getInt(string key, int index){
+	int getInt(string key, int index){
 		auto values = get(key);
 
 		if(values.size() > index){
@@ -177,7 +177,19 @@ struct Arguments{
 
 			return value;
 		}else{
-			return 0.0;
+			return 0;
+		}
+	}
+
+	int getInt(string key, int index, int default){
+		auto values = get(key);
+
+		if(values.size() > index){
+			int value = std::stoi(values[index]);
+
+			return value;
+		}else{
+			return default;
 		}
 	}
 

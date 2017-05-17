@@ -18,6 +18,7 @@ int main(int argc, char* argv[]){
 	int minLevel = args.getInt("min-level", 0);
 	int maxLevel = args.getInt("max-level", 0);
 
+
 	dmat4 box;
 	{
 		strBoxes = replaceAll(strBoxes, " ", "");
@@ -46,6 +47,24 @@ int main(int argc, char* argv[]){
 		string header = createHeader({results}, pointAttributes);
 		cout << header;
 
+	}else if(args.hasKey("check-threshold")){
+		int threshold = args.getInt("check-threshold", 0, 0);
+
+		bool passes = checkThreshold(reader, box, minLevel, maxLevel, threshold);
+
+		if(passes){
+			cout << R"(
+			{
+				"request": "CHECK_THRESHOLD",
+				"result": "BELOW_THRESHOLD"
+			})";
+		}else{
+			cout << R"(
+			{
+				"request": "CHECK_THRESHOLD",
+				"result": "THRESHOLD_EXCEEDED"
+			})";
+		}
 	}else{
 		auto results = getPointsInBox(reader, box, minLevel, maxLevel);
 

@@ -20,6 +20,42 @@ struct FilterResult{
 	int durationMS = 0;
 };
 
+bool checkThreshold(PotreeReader *reader, dmat4 box, int minLevel, int maxLevel, int threshold){
+	OBB obb(box);
+	
+	vector<PRNode*> intersectingNodes;
+	stack<PRNode*> workload({reader->root});
+	
+	int estimate = 0;
+	while(!workload.empty()){
+		auto node = workload.top();
+		workload.pop();
+	
+		intersectingNodes.push_back(node);
+		estimate += 8'000;
+
+		if(estimate > threshold){
+			return false;
+		}
+	
+		for(auto child : node->children()){
+			if(child != nullptr && obb.intersects(child->boundingBox) && child->level <= maxLevel){
+				workload.push(child);
+			}
+		}
+	}
+
+	return true;
+
+	//FilterResult result;
+	//result.box = box;
+	////result.points = ...;
+	//result.pointsProcessed = intersectingNodes.size() * 8'000;
+	//result.nodesProcessed = intersectingNodes.size();
+	//
+	//return result;
+}
+
 FilterResult estimatePointsInBox(PotreeReader *reader, dmat4 box, int minLevel, int maxLevel){
 	OBB obb(box);
 	
