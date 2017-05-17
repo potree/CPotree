@@ -19,14 +19,14 @@ int main(int argc, char* argv[]){
 	int maxLevel = args.getInt("max-level", 0);
 
 
-	dmat4 box;
+	vector<dmat4> boxes;
 	{
 		strBoxes = replaceAll(strBoxes, " ", "");
 
 		vector<string> tokens = split(strBoxes, ',');
 
-		if(tokens.size() != 16){
-			cerr << "Invalid box matrix sequence. Expected 16 tokens, found: " << tokens.size() << endl;
+		if((tokens.size() % 16) != 0){
+			cerr << "Invalid box matrix sequence. Expected a multiple of 16 tokens, found: " << tokens.size() << endl;
 			exit(1);
 		}
 
@@ -34,23 +34,24 @@ int main(int argc, char* argv[]){
 		for(auto token : tokens){
 			values.push_back(std::stod(token));
 		}
-		box = glm::make_mat4(values.data());
+
+		for (int i = 0; i < tokens.size() / 16; i++) {
+			int first = 16 * i;
+			int last = 16 * (i + 1);
+			vector<double> boxValues = vector<double>(values.begin() + first, values.begin() + last);
+			dmat4 box = glm::make_mat4(boxValues.data());
+			boxes.push_back(box);
+		}
+		
 	}
 	
 	PotreeReader *reader = new PotreeReader(file);
 
-	if(args.hasKey("estimate")){
-		auto results = estimatePointsInBox(reader, box, minLevel, maxLevel);
-
-		auto pointAttributes = PointAttributes({PointAttribute::POSITION_CARTESIAN});
-
-		string header = createHeader({results}, pointAttributes);
-		cout << header;
-
-	}else if(args.hasKey("check-threshold")){
+	if(args.hasKey("check-threshold")){
 		int threshold = args.getInt("check-threshold", 0, 0);
 
-		bool passes = checkThreshold(reader, box, minLevel, maxLevel, threshold);
+		//bool passes = checkThreshold(reader, box, minLevel, maxLevel, threshold);
+		bool passes = checkThreshold(reader, boxes, minLevel, maxLevel, threshold);
 
 		if(passes){
 			cout << R"(
@@ -66,7 +67,8 @@ int main(int argc, char* argv[]){
 			})";
 		}
 	}else{
-		auto results = getPointsInBox(reader, box, minLevel, maxLevel);
+		//auto results = getPointsInBox(reader, box, minLevel, maxLevel);
+		auto results = getPointsInBoxes(reader, boxes, minLevel, maxLevel);
 
 		save(reader, {results}, args);
 	}

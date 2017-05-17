@@ -46,14 +46,51 @@ bool checkThreshold(PotreeReader *reader, dmat4 box, int minLevel, int maxLevel,
 	}
 
 	return true;
+}
 
-	//FilterResult result;
-	//result.box = box;
-	////result.points = ...;
-	//result.pointsProcessed = intersectingNodes.size() * 8'000;
-	//result.nodesProcessed = intersectingNodes.size();
-	//
-	//return result;
+bool checkThreshold(PotreeReader *reader, vector<dmat4> boxes, int minLevel, int maxLevel, int threshold) {
+	//OBB obb(box);
+
+	vector<OBB> obbs;
+	for (auto box : boxes) {
+		OBB obb(box);
+		obbs.push_back(obb);
+	}
+
+	vector<PRNode*> intersectingNodes;
+	stack<PRNode*> workload({ reader->root });
+
+	int estimate = 0;
+	while (!workload.empty()) {
+		auto node = workload.top();
+		workload.pop();
+
+		intersectingNodes.push_back(node);
+		estimate += 8'000;
+
+		if (estimate > threshold) {
+			return false;
+		}
+
+		for (auto child : node->children()) {
+			if (child != nullptr && child->level <= maxLevel) {
+
+				bool intersects = false;
+				for (OBB obb : obbs) {
+					intersects = intersects || obb.intersects(child->boundingBox);
+					if (intersects) {
+						break;
+					}
+				}
+				
+				if (intersects) {
+					workload.push(child);
+				}
+			}
+		}
+	}
+
+	return true;
 }
 
 FilterResult estimatePointsInBox(PotreeReader *reader, dmat4 box, int minLevel, int maxLevel){
@@ -132,6 +169,77 @@ FilterResult getPointsInBox(PotreeReader *reader, dmat4 box, int minLevel, int m
 
 	FilterResult result;
 	result.box = box;
+	result.points = accepted;
+	result.pointsProcessed = pointsProcessed;
+	result.nodesProcessed = intersectingNodes.size();
+
+	return result;
+}
+
+FilterResult getPointsInBoxes(PotreeReader *reader, vector<dmat4> boxes, int minLevel, int maxLevel) {
+	vector<OBB> obbs;
+	for (auto box : boxes) {
+		OBB obb(box);
+		obbs.push_back(obb);
+	}
+
+	vector<PRNode*> intersectingNodes;
+	stack<PRNode*> workload({ reader->root });
+
+	// nodes that intersect with box
+	while (!workload.empty()) {
+		auto node = workload.top();
+		workload.pop();
+
+		intersectingNodes.push_back(node);
+
+		for (auto child : node->children()) {
+			if (child == nullptr || child->level > maxLevel) {
+				continue;
+			}
+
+			bool intersects = false;
+			for (OBB obb : obbs) {
+				intersects = intersects || obb.intersects(child->boundingBox);
+				if (intersects) {
+					break;
+				}
+			}
+
+			if (intersects) {
+				workload.push(child);
+			}
+		}
+	}
+
+	vector<Point> accepted;
+
+	int pointsProcessed = 0;
+
+	for (auto node : intersectingNodes) {
+		if (node->level < minLevel) {
+			continue;
+		}
+
+		for (auto &point : node->points()) {
+			pointsProcessed++;
+
+			bool isInside = false;
+			for (OBB obb : obbs) {
+				isInside = isInside || obb.inside(point.position);
+				if (isInside) {
+					break;
+				}
+			}
+
+			if (isInside) {
+				accepted.push_back(point);
+			}
+		}
+	}
+
+	FilterResult result;
+	//result.box = box;
 	result.points = accepted;
 	result.pointsProcessed = pointsProcessed;
 	result.nodesProcessed = intersectingNodes.size();
