@@ -2,7 +2,6 @@
 #include "PotreeFilters.h"
 
 int main(int argc, char* argv[]){
-
 	//cout.imbue(std::locale(""));
 	//std::cout.rdbuf()->pubsetbuf( 0, 0 );
 
@@ -14,10 +13,10 @@ int main(int argc, char* argv[]){
 	
 	string file = args.get("", 0);
 	string strBoxes = args.get("box", 0);
+	string metadata = args.get("metadata", 0);
 	double width = args.getDouble("width", 0);
 	int minLevel = args.getInt("min-level", 0);
 	int maxLevel = args.getInt("max-level", 0);
-
 
 	vector<dmat4> boxes;
 	{

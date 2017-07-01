@@ -569,7 +569,7 @@ void savePotree(PotreeReader *reader, vector<FilterResult> results, PointAttribu
 	}
 }
 
-void saveLAS(PotreeReader *reader, vector<FilterResult> results, PointAttributes attributes, ostream *out){
+void saveLAS(PotreeReader *reader, vector<FilterResult> results, PointAttributes attributes, ostream *out, Arguments &args){
 	//*out << "creating a las file";
 
 	unsigned int numPoints = 0;
@@ -611,11 +611,12 @@ void saveLAS(PotreeReader *reader, vector<FilterResult> results, PointAttributes
 	out->write(reinterpret_cast<const char*>(&headerSize), 2);	
 
 	// Offset to point data
-	unsigned long offsetToData = 227;
+	unsigned long offsetToData = 227 + 54 + args.get("metadata", 0).size();
 	out->write(reinterpret_cast<const char*>(&offsetToData), 4);	
 
 	// Number variable length records
-	out->write(zeroes.data(), 4);	
+	unsigned long numVarRecords = args.hasKey("metadata") ? 1 : 0;
+	out->write(reinterpret_cast<char*>(&numVarRecords), 4);
 
 	// Point Data Record Format
 	unsigned char pointFormat = 2;
@@ -651,6 +652,33 @@ void saveLAS(PotreeReader *reader, vector<FilterResult> results, PointAttributes
 	out->write(reinterpret_cast<const char*>(&bb.min.y), 8);
 	out->write(reinterpret_cast<const char*>(&bb.max.z), 8);
 	out->write(reinterpret_cast<const char*>(&bb.min.z), 8);
+
+	if(args.hasKey("metadata")){
+		string metadata = args.get("metadata", 0);
+
+		// reserved, 2 byte
+		out->write(zeroes.data(), 2);
+
+		// user id, 16 byte
+		vector<char> userID = vector<char>(16, 0);
+		out->write(userID.data(), 16);
+
+		// record id, 2 byte
+		unsigned short recordID = 0;
+		out->write(reinterpret_cast<const char*>(&recordID), 2);
+
+		// record length after header, 2 byte
+		unsigned short recordLengthAfterHeader = metadata.size();
+		out->write(reinterpret_cast<const char*>(&recordLengthAfterHeader), 2);
+
+		// description, 32 byte
+		vector<char> description = vector<char>(32, 0);
+		out->write(description.data(), 32);
+
+		// actual content
+		out->write(metadata.c_str(), metadata.size());
+
+	}
 
 	vector<char> buffer(pointRecordLength, 0);
 
@@ -716,7 +744,7 @@ void save(PotreeReader *reader, vector<FilterResult> results, Arguments args){
 
 		if(endsWith(file, ".las")){
 			ofstream out(file, std::ios::binary);
-			saveLAS(reader, results, pointAttributes, &out);
+			saveLAS(reader, results, pointAttributes, &out, args);
 			out.close();
 		}else{
 			// file type not supported		
