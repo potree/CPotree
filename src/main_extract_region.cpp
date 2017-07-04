@@ -11,10 +11,9 @@ int main(int argc, char* argv[]){
 		_setmode( _fileno( stdout ),  _O_BINARY );
 	}
 	
-	string file = args.get("", 0);
+	vector<string> files = args.get("");
 	string strBoxes = args.get("box", 0);
 	string metadata = args.get("metadata", 0);
-	double width = args.getDouble("width", 0);
 	int minLevel = args.getInt("min-level", 0);
 	int maxLevel = args.getInt("max-level", 0);
 
@@ -44,13 +43,11 @@ int main(int argc, char* argv[]){
 		
 	}
 	
-	PotreeReader *reader = new PotreeReader(file);
-
 	if(args.hasKey("check-threshold")){
 		int threshold = args.getInt("check-threshold", 0, 0);
 
 		//bool passes = checkThreshold(reader, box, minLevel, maxLevel, threshold);
-		bool passes = checkThreshold(reader, boxes, minLevel, maxLevel, threshold);
+		bool passes = checkThreshold(files, boxes, minLevel, maxLevel, threshold);
 
 		if(passes){
 			cout << R"(
@@ -67,9 +64,9 @@ int main(int argc, char* argv[]){
 		}
 	}else{
 		//auto results = getPointsInBox(reader, box, minLevel, maxLevel);
-		auto results = getPointsInBoxes(reader, boxes, minLevel, maxLevel);
+		auto results = getPointsInBoxes(files, boxes, minLevel, maxLevel);
 
-		save(reader, {results}, args);
+		save({results}, args);
 	}
 
 	
