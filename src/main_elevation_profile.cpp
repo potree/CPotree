@@ -7,11 +7,11 @@ int main(int argc, char* argv[]){
 	//std::cout.rdbuf()->pubsetbuf( 0, 0 );
 
 	Arguments args(argc, argv);
-
+#ifdef _WIN_32
 	if(args.hasKey("stdout")){
 		_setmode( _fileno( stdout ),  _O_BINARY );
 	}
-	
+#endif
 	
 	string file = args.get("", 0);
 	string strPolyline = args.get("coordinates", 0);

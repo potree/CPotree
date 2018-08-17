@@ -147,13 +147,13 @@ struct Arguments{
 		}
 	}
 
-	string get(string key, int index, string default){
+	string get(string key, int index, string defaultVal){
 		auto values = get(key);
 
 		if(values.size() > index){
 			return values[index];
 		}else{
-			return default;
+			return defaultVal;
 		}
 	}
 
@@ -181,7 +181,7 @@ struct Arguments{
 		}
 	}
 
-	int getInt(string key, int index, int default){
+	int getInt(string key, int index, int defaultVal){
 		auto values = get(key);
 
 		if(values.size() > index){
@@ -189,7 +189,7 @@ struct Arguments{
 
 			return value;
 		}else{
-			return default;
+			return defaultVal;
 		}
 	}
 
