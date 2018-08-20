@@ -20,20 +20,11 @@ struct FilterResult{
 	int durationMS = 0;
 };
 
-bool checkThreshold(vector<string> files, dmat4 box, int minLevel, int maxLevel, int threshold){
+bool checkThreshold(PotreeReader *reader, dmat4 box, int minLevel, int maxLevel, int threshold){
 	OBB obb(box);
 	
-	vector<PotreeReader*> readers;
-	for (auto file : files) {
-		PotreeReader *reader = new PotreeReader(file);
-		readers.push_back(reader);
-	}
-
 	vector<PRNode*> intersectingNodes;
-	stack<PRNode*> workload;
-	for (auto reader : readers) {
-		workload.push(reader->root);
-	}
+	stack<PRNode*> workload({reader->root});
 	
 	int estimate = 0;
 	while(!workload.empty()){
@@ -57,7 +48,8 @@ bool checkThreshold(vector<string> files, dmat4 box, int minLevel, int maxLevel,
 	return true;
 }
 
-bool checkThreshold(vector<string> files, vector<dmat4> boxes, int minLevel, int maxLevel, int threshold) {
+bool checkThreshold(PotreeReader *reader, vector<dmat4> boxes, int minLevel, int maxLevel, int threshold) {
+	//OBB obb(box);
 
 	vector<OBB> obbs;
 	for (auto box : boxes) {
@@ -65,17 +57,8 @@ bool checkThreshold(vector<string> files, vector<dmat4> boxes, int minLevel, int
 		obbs.push_back(obb);
 	}
 
-	vector<PotreeReader*> readers;
-	for (auto file : files) {
-		PotreeReader *reader = new PotreeReader(file);
-		readers.push_back(reader);
-	}
-
 	vector<PRNode*> intersectingNodes;
-	stack<PRNode*> workload;
-	for (auto reader : readers) {
-		workload.push(reader->root);
-	}
+	stack<PRNode*> workload({ reader->root });
 
 	int estimate = 0;
 	while (!workload.empty()) {
@@ -193,24 +176,15 @@ FilterResult getPointsInBox(PotreeReader *reader, dmat4 box, int minLevel, int m
 	return result;
 }
 
-FilterResult getPointsInBoxes(vector<string> files, vector<dmat4> boxes, int minLevel, int maxLevel) {
+FilterResult getPointsInBoxes(PotreeReader *reader, vector<dmat4> boxes, int minLevel, int maxLevel) {
 	vector<OBB> obbs;
 	for (auto box : boxes) {
 		OBB obb(box);
 		obbs.push_back(obb);
 	}
 
-	vector<PotreeReader*> readers;
-	for (auto file : files) {
-		PotreeReader *reader = new PotreeReader(file);
-		readers.push_back(reader);
-	}
-
 	vector<PRNode*> intersectingNodes;
-	stack<PRNode*> workload;
-	for (auto reader : readers) {
-		workload.push(reader->root);
-	}
+	stack<PRNode*> workload({ reader->root });
 
 	// nodes that intersect with box
 	while (!workload.empty()) {
@@ -459,17 +433,32 @@ string createHeader(vector<FilterResult> results, PointAttributes pointAttribute
 	return header;
 }
 
-void savePotree(vector<FilterResult> results, PointAttributes pointAttributes, ostream *out){
+void savePotree(PotreeReader *reader, vector<FilterResult> results, PointAttributes pointAttributes, ostream *out){
 
 	double scale = 0.001;
 
 	dvec3 min = {infinity, infinity, infinity};
+	//dvec3 max = {-infinity, -infinity, -infinity};
+	//int pointsAccepted = 0;
+	//int pointsProcessed = 0;
+	//int nodesProcessed = 0;
+	//int durationMS = 0;
 
 	for(auto &result : results){
+
+		//pointsAccepted += result.points.size();
+		//pointsProcessed += result.pointsProcessed;
+		//nodesProcessed += result.nodesProcessed;
+		//durationMS += result.durationMS;
+
 		for(auto &p : result.points){
 			min.x = std::min(min.x, p.position.x);
 			min.y = std::min(min.y, p.position.y);
 			min.z = std::min(min.z, p.position.z);
+
+			//max.x = std::max(max.x, p.position.x);
+			//max.y = std::max(max.y, p.position.y);
+			//max.z = std::max(max.z, p.position.z);
 		}
 	}
 
@@ -477,6 +466,50 @@ void savePotree(vector<FilterResult> results, PointAttributes pointAttributes, o
 	int headerSize = header.size();
 	out->write(reinterpret_cast<const char*>(&headerSize), 4);
 	out->write(header.c_str(), header.size());
+
+	//{ // HEADER
+	//	string header;
+	//	header += "{\n";
+	//	header += "\t\"points\": " + to_string(pointsAccepted) + ",\n";
+	//	header += "\t\"pointsProcessed\": " + to_string(pointsProcessed) + ",\n";
+	//	header += "\t\"nodesProcessed\": " + to_string(nodesProcessed) + ",\n";
+	//	header += "\t\"durationMS\": " + to_string(durationMS) + ",\n";
+
+	//	// BOUNDING BOX
+	//	header += "\t\"boundingBox\": {\n";
+	//	header += "\t\t\"lx\": " + to_string(min.x) + ",\n";
+	//	header += "\t\t\"ly\": " + to_string(min.y) + ",\n";
+	//	header += "\t\t\"lz\": " + to_string(min.z) + ",\n";
+	//	header += "\t\t\"ux\": " + to_string(max.x) + ",\n";
+	//	header += "\t\t\"uy\": " + to_string(max.y) + ",\n";
+	//	header += "\t\t\"uz\": " + to_string(max.z) + "\n";
+	//	header += "\t},\n";
+
+	//	header += "\t\"pointAttributes\": [\n";
+
+	//	for(int i = 0; i < pointAttributes.attributes.size(); i++){
+	//		auto attribute = pointAttributes.attributes[i];
+	//		header += "\t\t\"" + attribute.name + "\"";
+
+	//		if(i < pointAttributes.attributes.size() - 1){
+	//			header += ",\n";
+	//		}else{
+	//			header += "\n";
+	//		}
+	//		
+	//	}
+
+	//	header += "\t],\n";
+
+	//	header += "\t\"bytesPerPoint\": " + to_string(pointAttributes.byteSize) + ",\n";
+	//	header += "\t\"scale\": " + to_string(scale) + "\n";
+
+	//	header += "}\n";
+
+	//	int headerSize = header.size();
+	//	out->write(reinterpret_cast<const char*>(&headerSize), 4);
+	//	out->write(header.c_str(), header.size());
+	//}
 	
 	double mileage = 0.0;
 	for(auto &result : results){
@@ -485,6 +518,8 @@ void savePotree(vector<FilterResult> results, PointAttributes pointAttributes, o
 		OBB obb(box);
 		dvec3 localMin = dvec3(box * dvec4(-0.5, -0.5, -0.5, 1.0));
 		dvec3 lvx = dvec3(box * dvec4(+0.5, -0.5, -0.5, 1.0)) - localMin;
+		//dvec3 lvy = dvec3(box * dvec4(-0.5, +0.5, -0.5, 1.0)) - localMin;
+		//dvec3 lvz = dvec3(box * dvec4(-0.5, -0.5, +0.5, 1.0)) - localMin;
 
 		for(Point &p : result.points){
 			for(auto attribute : pointAttributes.attributes){
@@ -534,19 +569,12 @@ void savePotree(vector<FilterResult> results, PointAttributes pointAttributes, o
 	}
 }
 
-void saveLAS(vector<FilterResult> results, PointAttributes attributes, dvec3 scale, ostream *out, Arguments &args){
+void saveLAS(PotreeReader *reader, vector<FilterResult> results, PointAttributes attributes, ostream *out, Arguments &args){
 	//*out << "creating a las file";
 
 	unsigned int numPoints = 0;
 	for(auto &result : results){
 		numPoints += result.points.size();
-	}
-
-	AABB bb;
-	for (auto &result : results) {
-		for (Point &p : result.points) {
-			bb.expand(p.position.x, p.position.y, p.position.z);
-		}
 	}
 
 	vector<char> zeroes = vector<char>(8, 0);
@@ -609,13 +637,15 @@ void saveLAS(vector<FilterResult> results, PointAttributes attributes, dvec3 sca
 	out->write(zeroes.data(), 4);
 
 	// XYZ scale factors
+	dvec3 scale = reader->metadata.scale;
 	out->write(reinterpret_cast<const char*>(&scale), 3 * 8);
 
 	// XYZ OFFSETS
-	dvec3 offsets = bb.min;
+	dvec3 offsets = reader->metadata.boundingBox.min;
 	out->write(reinterpret_cast<const char*>(&offsets), 3 * 8);
 
 	// MAX X, MIN X, MAX Y, MIN Y, MAX Z, MIN Z
+	auto bb = reader->metadata.boundingBox;
 	out->write(reinterpret_cast<const char*>(&bb.max.x), 8);
 	out->write(reinterpret_cast<const char*>(&bb.min.x), 8);
 	out->write(reinterpret_cast<const char*>(&bb.max.y), 8);
@@ -683,7 +713,7 @@ void saveLAS(vector<FilterResult> results, PointAttributes attributes, dvec3 sca
 
 }
 
-void save(vector<FilterResult> results, Arguments args){
+void save(PotreeReader *reader, vector<FilterResult> results, Arguments args){
 
 	vector<PointAttribute> attributes;
 	if(args.hasKey("output-attributes")){
@@ -695,9 +725,7 @@ void save(vector<FilterResult> results, Arguments args){
 		}
 
 	}else{
-		attributes.push_back(PointAttribute::POSITION_CARTESIAN);
-		attributes.push_back(PointAttribute::RGB);
-		attributes.push_back(PointAttribute::INTENSITY);
+		attributes = reader->metadata.pointAttributes.attributes;
 		attributes.push_back(PointAttribute::POSITION_PROJECTED_PROFILE);
 	}
 	
@@ -705,7 +733,7 @@ void save(vector<FilterResult> results, Arguments args){
 
 	// write to stdout
 	if(args.hasKey("stdout")){
-		savePotree(results, pointAttributes, &cout);
+		savePotree(reader, results, pointAttributes, &cout);
 	}
 
 	// write to file
@@ -715,9 +743,8 @@ void save(vector<FilterResult> results, Arguments args){
 		fs::create_directories(fs::path(file).parent_path());
 
 		if(endsWith(file, ".las")){
-			dvec3 scale(0.001, 0.001, 0.001);
 			ofstream out(file, std::ios::binary);
-			saveLAS(results, pointAttributes, scale, &out, args);
+			saveLAS(reader, results, pointAttributes, &out, args);
 			out.close();
 		}else{
 			// file type not supported		
