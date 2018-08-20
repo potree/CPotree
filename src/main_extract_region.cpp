@@ -15,7 +15,6 @@ int main(int argc, char* argv[]){
 	string file = args.get("", 0);
 	string strBoxes = args.get("box", 0);
 	string metadata = args.get("metadata", 0);
-	double width = args.getDouble("width", 0);
 	int minLevel = args.getInt("min-level", 0);
 	int maxLevel = args.getInt("max-level", 0);
 
@@ -35,7 +34,7 @@ int main(int argc, char* argv[]){
 			values.push_back(std::stod(token));
 		}
 
-		for (int i = 0; i < tokens.size() / 16; i++) {
+		for (size_t i = 0; i < tokens.size() / 16; i++) {
 			int first = 16 * i;
 			int last = 16 * (i + 1);
 			vector<double> boxValues = vector<double>(values.begin() + first, values.begin() + last);

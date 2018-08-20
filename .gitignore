@@ -8,3 +8,4 @@ CPotree.vcxproj.user
 *.o
 PotreeElevationProfile
 PotreeExtractRegion
+.vscode

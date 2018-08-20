@@ -65,7 +65,7 @@ string join(vector<string> list, string seperator = string(", ")){
 	
 	string result;
 
-	for(int i = 0; i < list.size(); i++){
+	for(size_t i = 0; i < list.size(); i++){
 		result += list[i];
 
 		if(i < list.size() - 1){
@@ -84,7 +84,8 @@ struct Arguments{
 
 
 	Arguments(int argc, char* argv[]){
-		for(int i = 1; i < argc; i++){
+		size_t argc_s(argc);
+		for(size_t i = 1; i < argc_s; i++){
 			args.push_back(argv[i]);
 		}
 
@@ -137,7 +138,7 @@ struct Arguments{
 		return values;
 	}
 
-	string get(string key, int index){
+	string get(string key, size_t index){
 		auto values = get(key);
 
 		if(values.size() > index){
@@ -147,7 +148,7 @@ struct Arguments{
 		}
 	}
 
-	string get(string key, int index, string defaultVal){
+	string get(string key, size_t index, string defaultVal){
 		auto values = get(key);
 
 		if(values.size() > index){
@@ -157,7 +158,7 @@ struct Arguments{
 		}
 	}
 
-	double getDouble(string key, int index){
+	double getDouble(string key, size_t index){
 		auto values = get(key);
 
 		if(values.size() > index){
@@ -169,7 +170,7 @@ struct Arguments{
 		}
 	}
 
-	int getInt(string key, int index){
+	int getInt(string key, size_t index){
 		auto values = get(key);
 
 		if(values.size() > index){
@@ -181,7 +182,7 @@ struct Arguments{
 		}
 	}
 
-	int getInt(string key, int index, int defaultVal){
+	int getInt(string key, size_t index, int defaultVal){
 		auto values = get(key);
 
 		if(values.size() > index){
