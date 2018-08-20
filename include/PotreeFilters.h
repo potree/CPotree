@@ -33,7 +33,7 @@ bool checkThreshold(PotreeReader *reader, dmat4 box, int minLevel, int maxLevel,
 		workload.pop();
 
 		intersectingNodes.push_back(node);
-		estimate += 8'000;
+		estimate += 8000;
 
 		if(estimate > threshold){
 			return false;
@@ -67,7 +67,7 @@ bool checkThreshold(PotreeReader *reader, vector<dmat4> boxes, int minLevel, int
 		workload.pop();
 
 		intersectingNodes.push_back(node);
-		estimate += 8'000;
+		estimate += 8000;
 
 		if (estimate > threshold) {
 			return false;
@@ -117,7 +117,7 @@ FilterResult estimatePointsInBox(PotreeReader *reader, dmat4 box, int minLevel, 
 	FilterResult result;
 	result.box = box;
 	//result.points = ...;
-	result.pointsProcessed = intersectingNodes.size() * 8'000;
+	result.pointsProcessed = intersectingNodes.size() * 8000;
 	result.nodesProcessed = intersectingNodes.size();
 
 	return result;
@@ -362,7 +362,6 @@ string createHeader(vector<FilterResult> results, PointAttributes pointAttribute
 	int pointsProcessed = 0;
 	int nodesProcessed = 0;
 	int durationMS = 0;
-
 	for(auto &result : results){
 
 		pointsAccepted += result.points.size();

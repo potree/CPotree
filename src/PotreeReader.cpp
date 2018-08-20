@@ -35,7 +35,7 @@ PointAttribute PointAttribute::fromString(string name){
 	throw "Invalid PointAttribute name: '" + name + "'";
 }
 
-//bool operator==(const PointAttribute& lhs, const PointAttribute& rhs){ 
+//bool operator==(const PointAttribute& lhs, const PointAttribute& rhs){
 //	return lhs.ordinal == rhs.ordinal;
 //}
 
@@ -59,7 +59,9 @@ vector<PRNode*> PRNode::children(){
 
 
 void PotreeReader::load(PRNode *node){
-	string fNode = file + "/../data/" + getHierarchyPath(node) + "/" + node->name + ".bin";
+	size_t rIndex = file.rfind("cloud.js");
+	string basePath = file.substr(0, rIndex);
+	string fNode = basePath + "data/" + getHierarchyPath(node) + "/" + node->name + ".bin";
 
 	vector<char> buffer;
 	{
@@ -81,7 +83,7 @@ void PotreeReader::load(PRNode *node){
 	for(int i = 0; i < node->numPoints; i++){
 
 		Point &point = points[i];
-		
+
 		for(auto attribute : metadata.pointAttributes.attributes){
 
 			if(attribute == PointAttribute::POSITION_CARTESIAN){

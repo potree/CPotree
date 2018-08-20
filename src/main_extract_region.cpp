@@ -11,7 +11,7 @@ int main(int argc, char* argv[]){
 		_setmode( _fileno( stdout ),  _O_BINARY );
 	}
 #endif
-	
+
 	string file = args.get("", 0);
 	string strBoxes = args.get("box", 0);
 	string metadata = args.get("metadata", 0);
@@ -41,9 +41,9 @@ int main(int argc, char* argv[]){
 			dmat4 box = glm::make_mat4(boxValues.data());
 			boxes.push_back(box);
 		}
-		
+
 	}
-	
+
 	PotreeReader *reader = new PotreeReader(file);
 
 	if(args.hasKey("check-threshold")){
@@ -72,7 +72,7 @@ int main(int argc, char* argv[]){
 		save(reader, {results}, args);
 	}
 
-	
+
 
 	return 0;
 }

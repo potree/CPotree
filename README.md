@@ -81,3 +81,10 @@ Create a local version of the libs
 ```bash
 ./scripts/make-package
 ```
+
+
+Local test
+
+```bash
+./build/PotreeElevationProfile "/home/loic/potree/output/cloud.js" --coordinates "{1850000, 670000},{1854999, 674999}" --width 14.0 --min-level 0 --max-level 3 --stdout
+```
