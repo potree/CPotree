@@ -27,11 +27,11 @@ OBB::OBB(dmat4 box){
 	};
 
 	// TRANSFORM TO WORLD SPACE
-	for(int i = 0; i < vertices.size(); i++){
+	for(size_t i = 0; i < vertices.size(); i++){
 		vertices[i] = box * glm::dvec4(vertices[i], 1.0);
 	}
 
-	for(int i = 0; i < axes.size(); i++){
+	for(size_t i = 0; i < axes.size(); i++){
 		dvec3 tOrigin = box * dvec4(0.0, 0.0, 0.0, 1.0);
 		dvec3 tAxe = box * dvec4(axes[i], 1.0);
 		axes[i] = glm::normalize(tAxe - tOrigin);
@@ -46,12 +46,11 @@ OBB::OBB(dmat4 box){
 		{{0, 0, 1}, {1, 0, 0}, {0, 1, 0}}
 	};
 
-	for(int i = 0; i < projections.size(); i++){
+	for(auto &proj : projections){
 
 		dvec2 intervall = {infinity, -infinity};
 
 		for(auto &vertex : vertices){
-			auto &proj = projections[i];
 			auto pr = project(project(vertex, proj[0]), proj[1]);
 			double pi = glm::dot(pr, proj[2]);
 		
@@ -68,12 +67,11 @@ bool OBB::intersects(AABB &aabb){
 
 	vector<dvec2> projectedIntervallsAABB;
 
-	for(int i = 0; i < projections.size(); i++){
+	for(auto &proj : projections){
 
 		dvec2 intervall = {infinity, -infinity};
 
 		for(auto &vertex : aabb.vertices()){
-			auto &proj = projections[i];
 			auto pr = project(project(vertex, proj[0]), proj[1]);
 			double pi = glm::dot(pr, proj[2]);
 		
@@ -84,7 +82,7 @@ bool OBB::intersects(AABB &aabb){
 		projectedIntervallsAABB.push_back(intervall);
 	}
 
-	for(int i = 0; i < projectedIntervalls.size(); i++){
+	for(size_t i = 0; i < projectedIntervalls.size(); i++){
 		auto piOBB = projectedIntervalls[i];
 		auto piAABB = projectedIntervallsAABB[i];
 

@@ -7,12 +7,12 @@ int main(int argc, char* argv[]){
 	//std::cout.rdbuf()->pubsetbuf( 0, 0 );
 
 	Arguments args(argc, argv);
-
+#ifdef _WIN_32
 	if(args.hasKey("stdout")){
 		_setmode( _fileno( stdout ),  _O_BINARY );
 	}
-	
-	
+#endif
+
 	string file = args.get("", 0);
 	string strPolyline = args.get("coordinates", 0);
 	double width = args.getDouble("width", 0);
@@ -36,9 +36,8 @@ int main(int argc, char* argv[]){
 			polyline.push_back({x, y});
 		}
 	}
-	
-	PotreeReader *reader = new PotreeReader(file);
 
+	PotreeReader *reader = new PotreeReader(file);
 	if(args.hasKey("estimate")){
 		auto results = estimatePointsInProfile(reader, polyline, width, minLevel, maxLevel);
 
@@ -46,15 +45,11 @@ int main(int argc, char* argv[]){
 
 		string header = createHeader(results, pointAttributes);
 		cout << header;
-
 		//savePotree(reader, results, pointAttributes, &cout);
 	}else{
 		auto results = getPointsInProfile(reader, polyline, width, minLevel, maxLevel);
-
 		save(reader, results, args);
 	}
-
-	
 
 	return 0;
 }

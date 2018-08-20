@@ -36,15 +36,6 @@ struct AABB{
 		return 0.5 * max + 0.5 * min;
 	}
 
-	void expand(double x, double y, double z) {
-		this->min.x = std::min(x, this->min.x);
-		this->min.y = std::min(y, this->min.y);
-		this->min.z = std::min(z, this->min.z);
-		this->max.x = std::max(x, this->max.x);
-		this->max.y = std::max(y, this->max.y);
-		this->max.z = std::max(z, this->max.z);
-	}
-
 	vector<dvec3> vertices(){
 		
 		vector<dvec3> v = {
