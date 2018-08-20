@@ -82,9 +82,11 @@ Create a local version of the libs
 ./scripts/make-package
 ```
 
+### Local test
 
-Local test
+These are sample requests for me!
 
 ```bash
 ./build/PotreeElevationProfile "/home/loic/potree/output/cloud.js" --coordinates "{1850000, 670000},{1854999, 674999}" --width 14.0 --min-level 0 --max-level 3 --stdout
+./build/PotreeElevationProfile /home/loic/potree/output/cloud.js --coordinates "{1851000, 671000},{1852000, 672000},{1853999, 673999}" --width 10.0 --stdout
 ```
