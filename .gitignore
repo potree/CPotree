@@ -1,7 +1,5 @@
-x64
-bin
-obj
-CPotree.sdf
-.vs
-PotreeExtractRegion.vcxproj.user
-CPotree.vcxproj.user
+build/bin/
+build/obj/
+build/.vs/
+build/CPotree.sdf
+build/filter/filter.vcxproj.user
