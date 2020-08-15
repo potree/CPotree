@@ -319,29 +319,39 @@ vector<function<void(int64_t, uint8_t*)>> createAttributeHandlers(laszip_header*
 
 	{ // STANDARD LAS ATTRIBUTES
 
+		unordered_map<string, function<void(int64_t, uint8_t*)>> mapping;
 
-		int offsetRGB = attributes.getOffset("rgb");
-		Attribute* attributeRGB = attributes.get("rgb");
-		auto rgb = [point, header, offsetRGB, attributeRGB, attributes](int64_t index, uint8_t* data) {
+		{ // POSITION
+			int offset = attributes.getOffset("position");
+			auto handler = [point, offset, attributes](int64_t index, uint8_t* data) {
+				memcpy(&point->X, data + index * attributes.bytes + offset + 0, 4);
+				memcpy(&point->Y, data + index * attributes.bytes + offset + 4, 4);
+				memcpy(&point->Z, data + index * attributes.bytes + offset + 8, 4);
+			};
 
-			auto& rgba = point->rgb;
+			mapping["position"] = handler;
+		}
 
-			memcpy(&rgba, data + index * attributes.bytes + offsetRGB, 6);
-		};
+		{ // RGB
+			int offset = attributes.getOffset("rgb");
+			auto handler = [point, offset, attributes](int64_t index, uint8_t* data) {
+				auto& rgba = point->rgb;
 
-		unordered_map<string, function<void(int64_t, uint8_t*)>> mapping = {
-			{"rgb", rgb},
-			//{"intensity", intensity},
-			//{"return number", returnNumber},
-			//{"number of returns", numberOfReturns},
-			//{"classification", classification},
-			//{"scan angle rank", scanAngleRank},
-			//{"scan angle", scanAngle},
-			//{"user data", userData},
-			//{"point source id", pointSourceId},
-			//{"gps-time", gpsTime},
-			//{"classification flags", classificationFlags},
-		};
+				memcpy(&rgba, data + index * attributes.bytes + offset, 6);
+			};
+
+			mapping["rgb"] = handler;
+		}
+
+		{ // INTENSITY
+			int offset = attributes.getOffset("intensity");
+			auto handler = [point, offset, attributes](int64_t index, uint8_t* data) {
+				memcpy(&point->intensity, data + index * attributes.bytes + offset, 2);
+			};
+
+			mapping["intensity"] = handler;
+		}
+
 
 		for (auto& attribute : attributes.list) {
 
@@ -424,11 +434,11 @@ void write(string path, vector<AcceptedItem>& items, json& jsMetadata, Attribute
 
 	auto handlers = createAttributeHandlers(&header, point, attributes);
 
-	auto handler = [point, attributes](int64_t index, uint8_t* data) {
-		memcpy(&point->X, data + index * attributes.bytes + 0, 4);
-		memcpy(&point->Y, data + index * attributes.bytes + 4, 4);
-		memcpy(&point->Z, data + index * attributes.bytes + 8, 4);
-	};
+	//auto handler = [point, attributes](int64_t index, uint8_t* data) {
+	//	memcpy(&point->X, data + index * attributes.bytes + 0, 4);
+	//	memcpy(&point->Y, data + index * attributes.bytes + 4, 4);
+	//	memcpy(&point->Z, data + index * attributes.bytes + 8, 4);
+	//};
 
 	for (auto& item : items) {
 		
@@ -436,7 +446,7 @@ void write(string path, vector<AcceptedItem>& items, json& jsMetadata, Attribute
 
 		for (int64_t i = 0; i < numPoints; i++) {
 
-			handler(i, item.data->data_u8);
+			//handler(i, item.data->data_u8);
 
 			for (auto& handler : handlers) {
 				handler(i, item.data->data_u8);
@@ -454,7 +464,7 @@ int main(int argc, char** argv) {
 
 	auto tStart = now();
 
-	string path = "D:/temp/test/eclepens.las";
+	string path = "D:/temp/test/niederweiden.laz";
 	string metadataPath = path + "/metadata.json";
 	string octreePath = path + "/octree.bin";
 
@@ -467,8 +477,8 @@ int main(int argc, char** argv) {
 	//region.min = { -100, -100, -100 };
 	//region.max = {  100,  100,  100 };
 
-	region.min = { -5, -1000, -1000 };
-	region.max = {  5,  1000,  1000 };
+	region.min = { -1, -1000, -1000 };
+	region.max = {  1,  1000,  1000 };
 	
 	vector<Node*> clippedNodes;
 	for (auto node : hierarchy.nodes) {
