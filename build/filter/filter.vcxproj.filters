@@ -35,5 +35,8 @@
     <ClInclude Include="..\..\modules\unsuck\unsuck.hpp">
       <Filter>modules\unsuck</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\include\Attributes.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

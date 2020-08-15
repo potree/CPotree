@@ -152,6 +152,7 @@
     <ClCompile Include="..\..\src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\include\Attributes.h" />
     <ClInclude Include="..\..\modules\unsuck\TaskPool.hpp" />
     <ClInclude Include="..\..\modules\unsuck\unsuck.hpp" />
   </ItemGroup>
