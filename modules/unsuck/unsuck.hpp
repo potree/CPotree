@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <thread>
 #include <cstdint>
+#include <regex>
 
 using std::cout;
 using std::endl;
@@ -565,5 +566,23 @@ inline string rightPad(string in, int64_t length, const char character = ' ') {
 
 
 
+inline vector<string> getRegexMatches(string str, string strPattern) {
+
+	vector<string> matches;
+
+	std::regex pattern(strPattern, std::regex_constants::ECMAScript | std::regex_constants::icase);
+
+	auto it = std::sregex_iterator(str.begin(), str.end(), pattern);
+	auto end = std::sregex_iterator();
+	for (; it != end; it++) {
+		std::smatch match = *it;
+		std::string match_str = match.str();
+
+		matches.push_back(match_str);
+	}
+
+	return matches;
+}
 
 
+#define GENERATE_ERROR_MESSAGE cout << "ERROR(" << __FILE__ << ":" << __LINE__ << "): "

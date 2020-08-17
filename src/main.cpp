@@ -5,6 +5,7 @@
 #include <execution>
 #include <atomic>
 #include <mutex>
+#include <regex>
 
 #include "json/json.hpp"
 
@@ -15,7 +16,9 @@
 #include <glm/glm/gtc/matrix_transform.hpp>
 #include <glm/glm/gtc/type_ptr.hpp>
 
+#include "pmath.h"
 #include "unsuck/unsuck.hpp"
+#include "arguments/Arguments.hpp"
 
 #include "Attributes.h"
 
@@ -26,57 +29,58 @@ using std::for_each;
 using std::atomic_int64_t;
 using std::mutex;
 using std::lock_guard;
+using std::regex;
 
 using glm::dvec2;
 using glm::dvec3;
 using glm::dvec4;
 using glm::dmat4;
 
-struct AABB {
-	dvec3 min = { Infinity, Infinity, Infinity };
-	dvec3 max = { -Infinity, -Infinity, -Infinity };
+//struct AABB {
+//	dvec3 min = { Infinity, Infinity, Infinity };
+//	dvec3 max = { -Infinity, -Infinity, -Infinity };
+//
+//	dvec3 size() {
+//		return max - min;
+//	}
+//
+//	void expand(double x, double y, double z) {
+//		this->min.x = std::min(x, this->min.x);
+//		this->min.y = std::min(y, this->min.y);
+//		this->min.z = std::min(z, this->min.z);
+//		this->max.x = std::max(x, this->max.x);
+//		this->max.y = std::max(y, this->max.y);
+//		this->max.z = std::max(z, this->max.z);
+//	}
+//};
 
-	dvec3 size() {
-		return max - min;
-	}
-
-	void expand(double x, double y, double z) {
-		this->min.x = std::min(x, this->min.x);
-		this->min.y = std::min(y, this->min.y);
-		this->min.z = std::min(z, this->min.z);
-		this->max.x = std::max(x, this->max.x);
-		this->max.y = std::max(y, this->max.y);
-		this->max.z = std::max(z, this->max.z);
-	}
-};
-
-AABB childAABB(AABB& aabb, int& index) {
-
-	dvec3 min = aabb.min;
-	dvec3 max = aabb.max;
-
-	auto size = aabb.size();
-
-	if ((index & 0b0001) > 0) {
-		min.z += size.z / 2;
-	} else {
-		max.z -= size.z / 2;
-	}
-
-	if ((index & 0b0010) > 0) {
-		min.y += size.y / 2;
-	} else {
-		max.y -= size.y / 2;
-	}
-
-	if ((index & 0b0100) > 0) {
-		min.x += size.x / 2;
-	} else {
-		max.x -= size.x / 2;
-	}
-
-	return { min, max };
-}
+//AABB childAABB(AABB& aabb, int& index) {
+//
+//	dvec3 min = aabb.min;
+//	dvec3 max = aabb.max;
+//
+//	auto size = aabb.size();
+//
+//	if ((index & 0b0001) > 0) {
+//		min.z += size.z / 2;
+//	} else {
+//		max.z -= size.z / 2;
+//	}
+//
+//	if ((index & 0b0010) > 0) {
+//		min.y += size.y / 2;
+//	} else {
+//		max.y -= size.y / 2;
+//	}
+//
+//	if ((index & 0b0100) > 0) {
+//		min.x += size.x / 2;
+//	} else {
+//		max.x -= size.x / 2;
+//	}
+//
+//	return { min, max };
+//}
 
 enum NodeType {
 	NORMAL = 0,
@@ -279,40 +283,6 @@ Attributes parseAttributes(json& metadata) {
 	return attributes;
 }
 
-bool intersects(Node* node, AABB region) {
-	// box test from three.js, src/math/Box3.js
-
-	AABB a = node->aabb;
-	AABB b = region;
-
-	if (b.max.x < a.min.x || b.min.x > a.max.x ||
-		b.max.y < a.min.y || b.min.y > a.max.y ||
-		b.max.z < a.min.z || b.min.z > a.max.z) {
-
-		return false;
-
-	}
-
-	return true;
-}
-
-bool intersects(dvec3 point, AABB region) {
-
-	if (point.x < region.min.x || point.x > region.max.x) {
-		return false;
-	}
-
-	if (point.y < region.min.y || point.y > region.max.y) {
-		return false;
-	}
-
-	if (point.z < region.min.z || point.z > region.max.z) {
-		return false;
-	}
-
-	return true;
-}
-
 vector<function<void(int64_t, uint8_t*)>> createAttributeHandlers(laszip_header* header, laszip_point* point, Attributes& attributes) {
 
 	vector<function<void(int64_t, uint8_t*)>> handlers;
@@ -460,11 +430,241 @@ void write(string path, vector<AcceptedItem>& items, json& jsMetadata, Attribute
 
 }
 
+struct AreaMinMax {
+	dvec3 min = { -Infinity, -Infinity, -Infinity };
+	dvec3 max = { Infinity, Infinity, Infinity };
+};
+
+struct AreaMatrix {
+	dmat4 transform;
+};
+
+struct Area {
+	vector<AreaMinMax> minmaxs;
+	vector<OrientedBox> orientedBoxes;
+};
+
+
+vector<AreaMinMax> parseAreaMinMax(string strArea) {
+	vector<AreaMinMax> areasMinMax;
+
+	auto matches = getRegexMatches(strArea, "minmax\\([^\\)]*\\)");
+	for (string match : matches) {
+		cout << match << endl;
+
+		AreaMinMax minmax;
+
+		auto arrayMatches = getRegexMatches(match, "\\[[^\\]]*\\]");
+
+		if (arrayMatches.size() == 2) {
+
+			auto strip = [](string str) {
+				str.erase(remove_if(str.begin(), str.end(), isspace), str.end());
+				str.erase(std::remove(str.begin(), str.end(), '['), str.end());
+				str.erase(std::remove(str.begin(), str.end(), ']'), str.end());
+
+				return str;
+			};
+
+			{ // min
+				string strMin = arrayMatches[0];
+				strMin = strip(strMin);
+
+				auto tokensMin = getRegexMatches(strMin, "[^\,]+");
+
+				if (tokensMin.size() == 2) {
+					double x = stod(tokensMin[0]);
+					double y = stod(tokensMin[1]);
+
+					minmax.min.x = x;
+					minmax.min.y = y;
+				} else if (tokensMin.size() == 3) {
+					double x = stod(tokensMin[0]);
+					double y = stod(tokensMin[1]);
+					double z = stod(tokensMin[2]);
+
+					minmax.min.x = x;
+					minmax.min.y = y;
+					minmax.min.z = z;
+				} else {
+					GENERATE_ERROR_MESSAGE << "could not parse area. Expected two or three min values, got: " << tokensMin.size() << endl;
+				}
+			}
+
+			{ // max
+				string strMax = arrayMatches[1];
+				strMax = strip(strMax);
+				auto tokensMax = getRegexMatches(strMax, "[^\,]+");
+
+				if (tokensMax.size() == 2) {
+					double x = stod(tokensMax[0]);
+					double y = stod(tokensMax[1]);
+
+					minmax.max.x = x;
+					minmax.max.y = y;
+				} else if (tokensMax.size() == 3) {
+					double x = stod(tokensMax[0]);
+					double y = stod(tokensMax[1]);
+					double z = stod(tokensMax[2]);
+
+					minmax.max.x = x;
+					minmax.max.y = y;
+					minmax.max.z = z;
+				} else {
+					GENERATE_ERROR_MESSAGE << "could not parse area. Expected two or three max values, got: " << tokensMax.size() << endl;
+				}
+			}
+
+		} else {
+			GENERATE_ERROR_MESSAGE << "could not parse area. Expected two minmax arrays, got: " << arrayMatches.size() << endl;
+		}
+
+		areasMinMax.push_back(minmax);
+	}
+
+	return areasMinMax;
+}
+
+vector<OrientedBox> parseAreaMatrices(string strArea) {
+	vector<OrientedBox> areas;
+
+	auto matches = getRegexMatches(strArea, "matrix\\([^\\)]*\\)");
+
+	for (string match : matches) {
+		cout << match << endl;
+
+		auto arrayMatches = getRegexMatches(match, "[-+\\d][^,)]*");
+
+		if (arrayMatches.size() == 16) {
+
+			double values[16];
+			for(int i = 0; i < 16; i++){
+				double value = stod(arrayMatches[i]);
+				values[i] = value;
+			}
+
+			auto transform = glm::make_mat4(values);
+
+			OrientedBox box(transform);
+
+			areas.push_back(box);
+
+		}else{
+			GENERATE_ERROR_MESSAGE << "expected 16 matrix component values, got: " << arrayMatches.size() << endl;
+		}
+
+	}
+
+	return areas;
+}
+
+Area parseArea(string strArea) {
+
+	Area area;
+
+	area.minmaxs = parseAreaMinMax(strArea);
+	area.orientedBoxes = parseAreaMatrices(strArea);
+
+	return area;
+}
+
+bool intersects(Node* node, AABB region) {
+	// box test from three.js, src/math/Box3.js
+
+	AABB a = node->aabb;
+	AABB b = region;
+
+	if (b.max.x < a.min.x || b.min.x > a.max.x ||
+		b.max.y < a.min.y || b.min.y > a.max.y ||
+		b.max.z < a.min.z || b.min.z > a.max.z) {
+
+		return false;
+
+	}
+
+	return true;
+}
+
+bool intersects(dvec3 point, AABB region) {
+
+	if (point.x < region.min.x || point.x > region.max.x) {
+		return false;
+	}
+
+	if (point.y < region.min.y || point.y > region.max.y) {
+		return false;
+	}
+
+	if (point.z < region.min.z || point.z > region.max.z) {
+		return false;
+	}
+
+	return true;
+}
+
+bool intersects(Node* node, Area& area) {
+	auto a = node->aabb;
+	
+	for (auto& b : area.minmaxs) {
+		if (b.max.x < a.min.x || b.min.x > a.max.x ||
+			b.max.y < a.min.y || b.min.y > a.max.y ||
+			b.max.z < a.min.z || b.min.z > a.max.z) {
+
+			continue;
+		} else {
+			return true;
+		}
+	}
+
+	for (auto& box : area.orientedBoxes) {
+		
+		if (box.intersects(a)) {
+			return true;
+		}
+
+	}
+	
+	return false;
+}
+
+bool intersects(dvec3 point, Area& area) {
+
+	for (auto minmax : area.minmaxs) {
+		if (point.x < minmax.min.x || point.x > minmax.max.x) {
+			continue;
+		}else if (point.y < minmax.min.y || point.y > minmax.max.y) {
+			continue;
+		} else if (point.z < minmax.min.z || point.z > minmax.max.z) {
+			continue;
+		}
+
+		return true;
+	}
+
+	for (auto orientedBoxes : area.orientedBoxes) {
+		if (orientedBoxes.inside(point)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 int main(int argc, char** argv) {
 
 	auto tStart = now();
 
-	string path = "D:/temp/test/niederweiden.laz";
+	Arguments args(argc, argv);
+
+	args.addArgument("area", "clip area");
+
+	string strArea = args.get("area").as<string>();
+	
+	Area area = parseArea(strArea);
+
+
+
+	string path = "D:/temp/test/eclepens.las";
 	string metadataPath = path + "/metadata.json";
 	string octreePath = path + "/octree.bin";
 
@@ -472,18 +672,11 @@ int main(int argc, char** argv) {
 	json jsMetadata = json::parse(strMetadata);
 
 	auto hierarchy = loadHierarchy(path, jsMetadata);
-
-	AABB region;
-	//region.min = { -100, -100, -100 };
-	//region.max = {  100,  100,  100 };
-
-	region.min = { -1, -1000, -1000 };
-	region.max = {  1,  1000,  1000 };
 	
 	vector<Node*> clippedNodes;
 	for (auto node : hierarchy.nodes) {
 
-		if (intersects(node, region)) {
+		if (intersects(node, area)) {
 			clippedNodes.push_back(node);
 		}
 
@@ -512,7 +705,7 @@ int main(int argc, char** argv) {
 	
 
 	auto parallel = std::execution::par_unseq;
-	for_each(parallel, clippedNodes.begin(), clippedNodes.end(), [octreePath, attributes, scale, offset, region, &acceptedItems, &mtx_accept, &checked, &accepted](Node* node) {
+	for_each(parallel, clippedNodes.begin(), clippedNodes.end(), [octreePath, attributes, scale, offset, &area, &acceptedItems, &mtx_accept, &checked, &accepted](Node* node) {
 		auto data = readBinaryFile(octreePath, node->byteOffset, node->byteSize);
 
 		vector<int64_t> acceptedIndices;
@@ -532,7 +725,7 @@ int main(int argc, char** argv) {
 
 			dvec3 point = { x, y, z };
 
-			if (intersects(point, region)) {
+			if (intersects(point, area)) {
 				acceptedIndices.push_back(i);
 			}
 		}
