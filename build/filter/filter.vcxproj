@@ -153,7 +153,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\Attributes.h" />
+    <ClInclude Include="..\..\include\CPotree.h" />
+    <ClInclude Include="..\..\include\filter.h" />
+    <ClInclude Include="..\..\include\LasWriter.h" />
+    <ClInclude Include="..\..\include\Node.h" />
     <ClInclude Include="..\..\include\pmath.h" />
+    <ClInclude Include="..\..\include\PotreeLoader.h" />
     <ClInclude Include="..\..\modules\unsuck\TaskPool.hpp" />
     <ClInclude Include="..\..\modules\unsuck\unsuck.hpp" />
   </ItemGroup>

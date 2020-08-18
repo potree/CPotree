@@ -1,0 +1,32 @@
+{
+	// Use IntelliSense to learn about possible attributes.
+	// Hover to view descriptions of existing attributes.
+	// For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "(Windows) Launch",
+			"type": "cppvsdbg",
+			"request": "launch",
+			"program": "${workspaceFolder}/build/bin/Release_x64/filter.exe",
+			"args": [
+				"D:/temp/test/eclepens.las",
+				"D:/temp/test/nvidia",
+				"-o", "D:/temp/test1.laz",
+				// "--area", "inside any matrix(66.52500783337582, 13.354783416637149, 0, 0, -7.476078060744914, 37.241049595338225, 0, 0, 0, 0, 39.8286507363362, 0, 50.181681963455084, 42.683873671595904, -1.5704792367598612, 1)",
+				"--area", "inside any matrix(12.243284102144965, 0, 0, 0, 0, 26.125058539304217, 0, 0, 0, 0, 22.475740295475383, 0, -59.84499961090086, 66.5721129721552, 10.767771964369945, 1)",
+
+				// "D:/temp/test/nvidia",
+				// "-o", "D:/temp/test1.laz",
+				// "--area", "inside any matrix(5.694798503592475, 3.319850680554972, 1.1206291346621019e-15, 0, -1.7334329758224454, 2.9734926256205316, -0.26899390892266706, 0, -0.17926380719834642, 0.307505173940766, 4.5544011265114674, 0, -0.9421465287733589, 3.41639345992894, -0.9263016226724556, 1)",
+
+
+				// "--get-candidates",
+			],
+			"stopAtEntry": false,
+			"cwd": "${workspaceFolder}",
+			"environment": [],
+			"externalConsole": false
+		}
+	]
+}

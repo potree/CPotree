@@ -49,6 +49,11 @@ struct AABB {
 		this->max.z = std::max(z, this->max.z);
 	}
 
+	void expand(AABB b) {
+		this->expand(b.min.x, b.min.y, b.min.z);
+		this->expand(b.max.x, b.max.y, b.max.z);
+	}
+
 	vector<dvec3> vertices() {
 
 		vector<dvec3> v = {
@@ -63,6 +68,10 @@ struct AABB {
 		};
 
 		return v;
+	}
+
+	dvec3 center() {
+		return (min + max) / 2.0;
 	}
 
 
@@ -210,3 +219,7 @@ struct OrientedBox {
 
 
 };
+
+string toString(dvec3 value) {
+	return formatNumber(value.x, 3) + ", " + formatNumber(value.y, 3) + ", " + formatNumber(value.z, 3);
+}
