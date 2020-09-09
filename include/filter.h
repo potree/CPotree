@@ -44,9 +44,15 @@ struct AreaMinMax {
 	dvec3 max = { Infinity, Infinity, Infinity };
 };
 
+struct Profile {
+	vector<dvec3> points;
+	double width = 0.0;
+};
+
 struct Area {
 	vector<AreaMinMax> minmaxs;
 	vector<OrientedBox> orientedBoxes;
+	vector<Profile> profiles;
 };
 
 
@@ -161,12 +167,30 @@ vector<OrientedBox> parseAreaMatrices(string strArea) {
 	return areas;
 }
 
+vector<Profile> parseAreaProfile(string strArea) {
+	vector<Profile> profiles;
+
+	auto matches = getRegexMatches(strArea, "profile\\(([^)]*)\\)");
+	for (string match : matches) {
+
+		Profile profile;
+
+		cout << "'" << match << "'" << endl;
+
+	}
+
+	exit(123);
+
+	return profiles;
+}
+
 Area parseArea(string strArea) {
 
 	Area area;
 
 	area.minmaxs = parseAreaMinMax(strArea);
 	area.orientedBoxes = parseAreaMatrices(strArea);
+	area.profiles = parseAreaProfile(strArea);
 
 	return area;
 }
@@ -210,7 +234,7 @@ bool intersects(dvec3 point, Area& area) {
 		return true;
 	}
 
-	for (auto orientedBoxes : area.orientedBoxes) {
+	for (auto& orientedBoxes : area.orientedBoxes) {
 		if (orientedBoxes.inside(point)) {
 			return true;
 		}
