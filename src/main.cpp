@@ -159,13 +159,22 @@ int main(int argc, char** argv) {
 			cout << "ERROR: unkown output format, extension not known: " << targetpath << endl;
 		}
 
+
+		int64_t totalAccepted = 0;
+		int64_t totalRejected = 0;
 		for(string path : sources){
 
-			filterPointcloud(path, area, minLevel, maxLevel, [&writer, tStart](Attributes& sourceAttributes, Node* node, shared_ptr<Buffer> data, int64_t numAccepted, int64_t numRejected){
-				writer->write(sourceAttributes, node, data, numAccepted, numRejected);
+			filterPointcloud(path, area, minLevel, maxLevel, [&writer, tStart, &totalAccepted, &totalRejected](Node* node, shared_ptr<Points> points, int64_t numAccepted, int64_t numRejected){
+
+				totalAccepted += numAccepted;
+				totalRejected += numRejected;
+
+				//writer->write(sourceAttributes, node, data, numAccepted, numRejected);
 			});
 
 		};
+
+		cout << "#accepted: " << totalAccepted << ", #rejected: " << totalRejected << endl;
 
 		writer->close();
 	}

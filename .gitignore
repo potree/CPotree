@@ -1,5 +1,2 @@
-build/bin/
-build/obj/
-build/.vs/
-build/CPotree.sdf
-build/filter/filter.vcxproj.user
+
+build/

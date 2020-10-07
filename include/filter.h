@@ -16,6 +16,8 @@
 #include <glm/glm/gtc/constants.hpp>
 #include <glm/glm/gtc/matrix_transform.hpp>
 #include <glm/glm/gtc/type_ptr.hpp>
+#include "brotli/decode.h"
+
 
 #include "unsuck/unsuck.hpp"
 #include "pmath.h"
@@ -265,8 +267,161 @@ int64_t getNumCandidates(string path, Area area) {
 	return numCandidates;
 }
 
+struct Points {
+	Attributes attributes;
+	unordered_map<string, shared_ptr<Buffer>> attributesData;
 
-void filterPointcloud(string path, Area area, int minLevel, int maxLevel, function<void(Attributes&, Node*, shared_ptr<Buffer>, int64_t, int64_t)> callback) {
+	int64_t numPoints;
+};
+
+uint32_t dealign24b(uint32_t mortoncode) {
+	// see https://stackoverflow.com/questions/45694690/how-i-can-remove-all-odds-bits-in-c
+
+	// input alignment of desired bits
+	// ..a..b..c..d..e..f..g..h..i..j..k..l..m..n..o..p
+	uint32_t x = mortoncode;
+
+	//          ..a..b..c..d..e..f..g..h..i..j..k..l..m..n..o..p                     ..a..b..c..d..e..f..g..h..i..j..k..l..m..n..o..p 
+	//          ..a.....c.....e.....g.....i.....k.....m.....o...                     .....b.....d.....f.....h.....j.....l.....n.....p 
+	//          ....a.....c.....e.....g.....i.....k.....m.....o.                     .....b.....d.....f.....h.....j.....l.....n.....p 
+	x = ((x & 0b001000001000001000001000) >> 2) | ((x & 0b000001000001000001000001) >> 0);
+	//          ....ab....cd....ef....gh....ij....kl....mn....op                     ....ab....cd....ef....gh....ij....kl....mn....op
+	//          ....ab..........ef..........ij..........mn......                     ..........cd..........gh..........kl..........op
+	//          ........ab..........ef..........ij..........mn..                     ..........cd..........gh..........kl..........op
+	x = ((x & 0b000011000000000011000000) >> 4) | ((x & 0b000000000011000000000011) >> 0);
+	//          ........abcd........efgh........ijkl........mnop                     ........abcd........efgh........ijkl........mnop
+	//          ........abcd....................ijkl............                     ....................efgh....................mnop
+	//          ................abcd....................ijkl....                     ....................efgh....................mnop
+	x = ((x & 0b000000001111000000000000) >> 8) | ((x & 0b000000000000000000001111) >> 0);
+	//          ................abcdefgh................ijklmnop                     ................abcdefgh................ijklmnop
+	//          ................abcdefgh........................                     ........................................ijklmnop
+	//          ................................abcdefgh........                     ........................................ijklmnop
+	x = ((x & 0b000000000000000000000000) >> 16) | ((x & 0b000000000000000011111111) >> 0);
+
+	// sucessfully realigned! 
+	//................................abcdefghijklmnop
+
+	return x;
+}
+
+shared_ptr<Points> readNode(bool isBrotliEncoded, Attributes& attributes, string octreePath, Node* node) {
+
+	auto points = make_shared<Points>();
+
+	points->attributes = attributes;
+	points->numPoints = node->numPoints;
+
+	auto data = readBinaryFile(octreePath, node->byteOffset, node->byteSize);
+
+	if (isBrotliEncoded) {
+
+		size_t encoded_size = node->byteSize;
+		const uint8_t* encoded_buffer = data.data();
+
+		thread_local int64_t decoded_buffer_size = 1024 * 1024;
+		thread_local uint8_t* decoded_buffer = reinterpret_cast<uint8_t*>(malloc(decoded_buffer_size));
+
+		size_t decoded_size = decoded_buffer_size;
+
+		bool success = false;
+		int numAttempts = 0;
+		while (!success && numAttempts < 10) {
+			numAttempts++;
+
+			auto status = BrotliDecoderDecompress(encoded_size, encoded_buffer, &decoded_size, decoded_buffer);
+
+			if (status == BROTLI_DECODER_RESULT_ERROR) {
+				decoded_buffer_size = 2 * decoded_buffer_size;
+				decoded_size = decoded_buffer_size;
+				free(decoded_buffer);
+				decoded_buffer = reinterpret_cast<uint8_t*>(malloc(decoded_buffer_size));
+			} else if(status == BROTLI_DECODER_RESULT_SUCCESS){
+				success = true;
+			}
+		}
+
+		if (!success) {
+			GENERATE_ERROR_MESSAGE << "ERROR: failed to decode compressed node after " << numAttempts << " attempts" << endl;
+			exit(123);
+		}
+
+		int64_t offset = 0;
+		for (auto &attribute : attributes.list) {
+
+			int64_t attributeDataSize = attribute.size * node->numPoints;
+			string name = attribute.name;
+
+			auto buffer = make_shared<Buffer>(attributeDataSize);
+
+			if (attribute.name == "position") {
+
+				// special case because position is stored as 96 bit morton code
+
+				for (int64_t i = 0; i < points->numPoints; i++) {
+
+					uint32_t mc_0, mc_1, mc_2, mc_3;
+					memcpy(&mc_0, decoded_buffer + offset + 16 * i +  4, 4);
+					memcpy(&mc_1, decoded_buffer + offset + 16 * i +  0, 4);
+					memcpy(&mc_2, decoded_buffer + offset + 16 * i + 12, 4);
+					memcpy(&mc_3, decoded_buffer + offset + 16 * i +  8, 4);
+
+					int64_t X = dealign24b((mc_3 & 0x00FFFFFF) >> 0)
+						| (dealign24b(((mc_3 >> 24) | (mc_2 << 8)) >> 0) << 8);
+
+					int64_t Y = dealign24b((mc_3 & 0x00FFFFFF) >> 1)
+						| (dealign24b(((mc_3 >> 24) | (mc_2 << 8)) >> 1) << 8);
+
+					int64_t Z = dealign24b((mc_3 & 0x00FFFFFF) >> 2)
+						| (dealign24b(((mc_3 >> 24) | (mc_2 << 8)) >> 2) << 8);
+
+					if (mc_1 != 0 || mc_2 != 0) {
+						X = X | (dealign24b((mc_1 & 0x00FFFFFF) >> 0) << 16)
+							| (dealign24b(((mc_1 >> 24) | (mc_0 << 8)) >> 0) << 24);
+
+						Y = Y | (dealign24b((mc_1 & 0x00FFFFFF) >> 1) << 16)
+							| (dealign24b(((mc_1 >> 24) | (mc_0 << 8)) >> 1) << 24);
+
+						Z = Z | (dealign24b((mc_1 & 0x00FFFFFF) >> 2) << 16)
+							| (dealign24b(((mc_1 >> 24) | (mc_0 << 8)) >> 2) << 24);
+					}
+
+					int32_t X32 = X;
+					int32_t Y32 = Y;
+					int32_t Z32 = Z;
+
+					memcpy(buffer->data_u8 + 12 * i + 0, &X32, 4);
+					memcpy(buffer->data_u8 + 12 * i + 4, &Y32, 4);
+					memcpy(buffer->data_u8 + 12 * i + 8, &Z32, 4);
+
+				}
+				
+
+
+			} else {
+				
+				memcpy(buffer->data, decoded_buffer + offset, attributeDataSize);
+
+			}
+
+			points->attributesData[name] = buffer;
+			offset += attributeDataSize;
+		}
+
+	} else {
+
+
+	}
+
+
+
+
+	
+
+	return points;
+}
+
+
+void filterPointcloud(string path, Area area, int minLevel, int maxLevel, function<void(Node*, shared_ptr<Points>, int64_t, int64_t)> callback) {
 
 	double tStart = now();
 
@@ -308,18 +463,25 @@ void filterPointcloud(string path, Area area, int minLevel, int maxLevel, functi
 	atomic_int64_t accepted = 0;
 
 	auto parallel = std::execution::par_unseq;
-	for_each(parallel, clippedNodes.begin(), clippedNodes.end(), [octreePath, &attributes, scale, offset, &area, &mtx_accept, &checked, &accepted, &callback](Node* node) {
-		auto data = readBinaryFile(octreePath, node->byteOffset, node->byteSize);
+	for_each(parallel, clippedNodes.begin(), clippedNodes.end(), [&jsMetadata, octreePath, &attributes, scale, offset, &area, &mtx_accept, &checked, &accepted, &callback](Node* node) {
+
+		bool isBrotliEncoded = jsMetadata["encoding"] == "BROTLI";
+		auto points = readNode(isBrotliEncoded, attributes, octreePath, node);
+
+		int64_t numAccepted = 0;
+		int64_t numRejected = 0;
 
 		vector<int64_t> acceptedIndices;
 
-		for (int64_t i = 0; i < node->numPoints; i++) {
-			int64_t byteOffset = i * attributes.bytes;
+		auto aPosition = points->attributes.get("position");
+		auto buf_position = points->attributesData["position"];
+		for (int64_t i = 0; i < points->numPoints; i++) {
+			int64_t byteOffset = i * 12;
 
 			int32_t ix, iy, iz;
-			memcpy(&ix, data.data() + byteOffset + 0, 4);
-			memcpy(&iy, data.data() + byteOffset + 4, 4);
-			memcpy(&iz, data.data() + byteOffset + 8, 4);
+			memcpy(&ix, buf_position->data_u8 + byteOffset + 0, 4);
+			memcpy(&iy, buf_position->data_u8 + byteOffset + 4, 4);
+			memcpy(&iz, buf_position->data_u8 + byteOffset + 8, 4);
 
 			double x = double(ix) * scale.x + offset.x;
 			double y = double(iy) * scale.y + offset.y;
@@ -328,26 +490,42 @@ void filterPointcloud(string path, Area area, int minLevel, int maxLevel, functi
 			dvec3 point = { x, y, z };
 
 			if (intersects(point, area)) {
+
 				acceptedIndices.push_back(i);
+
+				numAccepted++;
+			} else {
+				numRejected++;
 			}
 		}
 
-		checked += node->numPoints;
-		accepted += acceptedIndices.size();
+		// pack accepted points to front, remove rejected, adjust (claimed) buffer size
 
-		auto buffer = make_shared<Buffer>(acceptedIndices.size() * attributes.bytes);
+		for (auto& attribute : points->attributes.list) {
 
-		for (auto index : acceptedIndices) {
-			buffer->write(data.data() + index * attributes.bytes, attributes.bytes);
+			shared_ptr<Buffer> data = points->attributesData[attribute.name];
+			int64_t targetOffset = 0;
+
+			for (int64_t acceptedIndex : acceptedIndices) {
+				int64_t sourceOffset = acceptedIndex * attribute.size;
+
+				memcpy(data->data_u8 + targetOffset, data->data_u8 + sourceOffset, attribute.size);
+
+				targetOffset += attribute.size;
+			}
+
+			data->size = numAccepted * attribute.size;
 		}
 
+		points->numPoints = numAccepted;
+
+		
 		{
 			lock_guard<mutex> lock(mtx_accept);
 
-			int64_t batch_accepted = acceptedIndices.size();
-			int64_t batch_rejected = node->numPoints - batch_accepted;
+			
 
-			callback(attributes, node, buffer, batch_accepted, batch_rejected);
+			callback(node, points, numAccepted, numRejected);
 		}
 	});
 }
