@@ -18,6 +18,8 @@
 #include "Attributes.h"
 #include "Node.h"
 
+#include "Writer.h"
+
 using glm::dvec2;
 using glm::dvec3;
 using glm::dvec4;
@@ -30,7 +32,7 @@ using std::mutex;
 using std::lock_guard;
 
 
-vector<function<void(int64_t, uint8_t*)>> createAttributeHandlers(laszip_header* header, laszip_point* point, Attributes& attributes) {
+vector<function<void(int64_t, uint8_t*)>> createAttributeHandlers(laszip_header* header, laszip_point* point, Attributes& attributes, Attributes outputAttributes) {
 
 	vector<function<void(int64_t, uint8_t*)>> handlers;
 
@@ -81,7 +83,7 @@ vector<function<void(int64_t, uint8_t*)>> createAttributeHandlers(laszip_header*
 		}
 
 
-		for (auto& attribute : attributes.list) {
+		for (auto& attribute : outputAttributes.list) {
 
 			if (mapping.find(attribute.name) != mapping.end()) {
 				handlers.push_back(mapping[attribute.name]);
@@ -95,9 +97,10 @@ vector<function<void(int64_t, uint8_t*)>> createAttributeHandlers(laszip_header*
 
 
 
-struct LasWriter {
+struct LasWriter : public Writer {
 
 	string path;
+	Attributes outputAttributes;
 
 	laszip_POINTER laszip_writer;
 	laszip_point* point;
@@ -109,8 +112,9 @@ struct LasWriter {
 
 	mutex mtx_write;
 
-	LasWriter(string path, dvec3 scale, dvec3 offset) {
+	LasWriter(string path, dvec3 scale, dvec3 offset, Attributes outputAttributes) {
 		this->path = path;
+		this->outputAttributes = outputAttributes;
 
 		laszip_create(&laszip_writer);
 
@@ -151,11 +155,11 @@ struct LasWriter {
 		laszip_get_point_pointer(laszip_writer, &point);
 	}
 
-	void write(Attributes& inputAttributes, Node* node, shared_ptr<Buffer> data) {
+	void write(Attributes& inputAttributes, Node* node, shared_ptr<Buffer> data, int64_t numAccepted, int64_t numRejected) {
 
 		lock_guard<mutex> lock(mtx_write);
 
-		auto handlers = createAttributeHandlers(&header, point, inputAttributes);
+		auto handlers = createAttributeHandlers(&header, point, inputAttributes, outputAttributes);
 
 		int64_t numPoints = data->size / inputAttributes.bytes;
 
@@ -166,15 +170,15 @@ struct LasWriter {
 
 		for (int64_t i = 0; i < numPoints; i++) {
 
-			int64_t X, Y, Z;
+			int32_t X, Y, Z;
 
 			memcpy(&X, data->data_u8 + i * inputAttributes.bytes + posOffset + 0, 4);
 			memcpy(&Y, data->data_u8 + i * inputAttributes.bytes + posOffset + 4, 4);
 			memcpy(&Z, data->data_u8 + i * inputAttributes.bytes + posOffset + 8, 4);
 
-			double x = double(X) / scale.x + offset.x;
-			double y = double(Y) / scale.y + offset.y;
-			double z = double(Z) / scale.z + offset.z;
+			double x = double(X) * scale.x + offset.x;
+			double y = double(Y) * scale.y + offset.y;
+			double z = double(Z) * scale.z + offset.z;
 
 			aabb.expand(x, y, z);
 

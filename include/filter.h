@@ -190,7 +190,7 @@ Area parseArea(string strArea) {
 
 	area.minmaxs = parseAreaMinMax(strArea);
 	area.orientedBoxes = parseAreaMatrices(strArea);
-	area.profiles = parseAreaProfile(strArea);
+	//area.profiles = parseAreaProfile(strArea);
 
 	return area;
 }
@@ -266,7 +266,7 @@ int64_t getNumCandidates(string path, Area area) {
 }
 
 
-void filterPointcloud(string path, Area area, function<void(Attributes&, Node*, shared_ptr<Buffer>)> callback) {
+void filterPointcloud(string path, Area area, int minLevel, int maxLevel, function<void(Attributes&, Node*, shared_ptr<Buffer>, int64_t, int64_t)> callback) {
 
 	double tStart = now();
 
@@ -281,7 +281,10 @@ void filterPointcloud(string path, Area area, function<void(Attributes&, Node*, 
 	vector<Node*> clippedNodes;
 	for (auto node : hierarchy.nodes) {
 
-		if (intersects(node, area)) {
+		bool inArea = intersects(node, area);
+		bool inLevelRange = node->level() >= minLevel && node->level() <= maxLevel;
+
+		if (inArea && inLevelRange) {
 			clippedNodes.push_back(node);
 		}
 
@@ -309,7 +312,6 @@ void filterPointcloud(string path, Area area, function<void(Attributes&, Node*, 
 		auto data = readBinaryFile(octreePath, node->byteOffset, node->byteSize);
 
 		vector<int64_t> acceptedIndices;
-
 
 		for (int64_t i = 0; i < node->numPoints; i++) {
 			int64_t byteOffset = i * attributes.bytes;
@@ -342,7 +344,10 @@ void filterPointcloud(string path, Area area, function<void(Attributes&, Node*, 
 		{
 			lock_guard<mutex> lock(mtx_accept);
 
-			callback(attributes, node, buffer);
+			int64_t batch_accepted = acceptedIndices.size();
+			int64_t batch_rejected = node->numPoints - batch_accepted;
+
+			callback(attributes, node, buffer, batch_accepted, batch_rejected);
 		}
 	});
 }

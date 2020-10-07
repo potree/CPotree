@@ -27,6 +27,10 @@ struct Node {
 	int64_t byteSize = 0;
 	int64_t numPoints = 0;
 
+	int level() {
+		return name.size() - 1;
+	}
+
 	void traverse(function<void(Node*)> callback) {
 
 		callback(this);

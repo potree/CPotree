@@ -319,6 +319,10 @@ inline bool iEndsWith(const std::string& str, const std::string& suffix) {
 // taken from: https://stackoverflow.com/questions/2602013/read-whole-ascii-file-into-c-stdstring/2602060
 inline string readTextFile(string path) {
 
+	if (!fs::is_regular_file(path)) {
+		return "";
+	}
+
 	std::ifstream t(path);
 	std::string str;
 

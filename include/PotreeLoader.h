@@ -39,6 +39,10 @@ void loadHierarchyRecursive(Hierarchy& hierarchy, Node* root, shared_ptr<Buffer>
 		int64_t byteOffset = data->read<int64_t>(offsetNode + 6);
 		int64_t byteSize = data->read<int64_t>(offsetNode + 14);
 
+		if (byteOffset > 10'000'000) {
+			int a = 10;
+		}
+
 		current->byteOffset = byteOffset;
 		current->byteSize = byteSize;
 		current->numPoints = numPoints;
