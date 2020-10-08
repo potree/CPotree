@@ -117,8 +117,7 @@ struct PotreeWriter : public Writer {
 
 
 	struct Task {
-		Attributes attributes;
-		shared_ptr<Buffer> data;
+		shared_ptr<Points> points;
 		int64_t numAccepted = 0;
 	};
 
@@ -129,22 +128,25 @@ struct PotreeWriter : public Writer {
 		this->outputAttributes = outputAttributes;
 	}
 
-	void write(Attributes& inputAttributes, Node* node, shared_ptr<Buffer> data, int64_t numAccepted, int64_t numRejected) {
+	void write(Node* node, shared_ptr<Points> points, int64_t numAccepted, int64_t numRejected) {
+
+		auto inputAttributes = points->attributes;
+
 		Task task;
-		task.attributes = inputAttributes;
-		task.data = data;
+		task.points = points;
 		task.numAccepted = numAccepted;
 
-		int posOffset = inputAttributes.getOffset("position");
 		dvec3 scale = inputAttributes.posScale;
 		dvec3 offset = inputAttributes.posOffset;
+
+		auto buff_position = points->attributesData["position"];
 
 		for(int64_t i = 0; i < numAccepted; i++){
 			int32_t X, Y, Z;
 
-			memcpy(&X, data->data_u8 + i * inputAttributes.bytes + posOffset + 0, 4);
-			memcpy(&Y, data->data_u8 + i * inputAttributes.bytes + posOffset + 4, 4);
-			memcpy(&Z, data->data_u8 + i * inputAttributes.bytes + posOffset + 8, 4);
+			memcpy(&X, buff_position->data_u8 + i * 12 + 0, 4);
+			memcpy(&Y, buff_position->data_u8 + i * 12 + 4, 4);
+			memcpy(&Z, buff_position->data_u8 + i * 12 + 8, 4);
 
 			double x = double(X) * scale.x + offset.x;
 			double y = double(Y) * scale.y + offset.y;
@@ -175,7 +177,9 @@ struct PotreeWriter : public Writer {
 		for (auto& task : backlog) {
 			for (int64_t i = 0; i < task.numAccepted; i++) {
 
-				auto handlers = createAttributeHandlers(task.attributes, outputAttributes, task.data->data_u8, stream);
+				auto points = task.points;
+				auto inputAttributes = points->attributes;
+				auto handlers = createAttributeHandlers(inputAttributes, outputAttributes, points, stream);
 
 				for (auto& handler : handlers) {
 					handler(i);
@@ -188,7 +192,7 @@ struct PotreeWriter : public Writer {
 		stream.close();
 	}
 
-	vector<function<void(int64_t)>> createAttributeHandlers(Attributes& sourceAttributes, Attributes targetAttributes, uint8_t* source, ofstream& target) {
+	vector<function<void(int64_t)>> createAttributeHandlers(Attributes& sourceAttributes, Attributes targetAttributes, shared_ptr<Points> points, ofstream& target) {
 
 		vector<function<void(int64_t)>> handlers;
 
@@ -198,13 +202,14 @@ struct PotreeWriter : public Writer {
 
 			{ // POSITION
 				int offset = sourceAttributes.getOffset("position");
-				auto handler = [offset, sourceAttributes, targetAttributes, source, &target](int64_t index) {
+				auto buff_position = points->attributesData["position"];
+				auto handler = [offset, sourceAttributes, targetAttributes, buff_position, &target](int64_t index) {
 
 					int32_t X, Y, Z;
 
-					memcpy(&X, source + index * sourceAttributes.bytes + offset + 0, 4);
-					memcpy(&Y, source + index * sourceAttributes.bytes + offset + 4, 4);
-					memcpy(&Z, source + index * sourceAttributes.bytes + offset + 8, 4);
+					memcpy(&X, buff_position->data_u8 + index * sourceAttributes.bytes + offset + 0, 4);
+					memcpy(&Y, buff_position->data_u8 + index * sourceAttributes.bytes + offset + 4, 4);
+					memcpy(&Z, buff_position->data_u8 + index * sourceAttributes.bytes + offset + 8, 4);
 
 					double x = double(X) * sourceAttributes.posScale.x + sourceAttributes.posOffset.x;
 					double y = double(Y) * sourceAttributes.posScale.y + sourceAttributes.posOffset.y;
@@ -224,10 +229,11 @@ struct PotreeWriter : public Writer {
 
 			{ // RGB
 				int offset = sourceAttributes.getOffset("rgb");
-				auto handler = [offset, sourceAttributes, targetAttributes, source, &target](int64_t index) {
+				auto buff_rgb = points->attributesData["rgb"];
+				auto handler = [offset, sourceAttributes, targetAttributes, buff_rgb, &target](int64_t index) {
 					uint16_t rgb[3];
 
-					memcpy(&rgb, source + index * sourceAttributes.bytes + offset, 6);
+					memcpy(&rgb, buff_rgb->data_u8 + index * sourceAttributes.bytes + offset, 6);
 
 					target.write(reinterpret_cast<const char*>(&rgb), 6);
 				};
@@ -237,10 +243,11 @@ struct PotreeWriter : public Writer {
 
 			{ // INTENSITY
 				int offset = sourceAttributes.getOffset("intensity");
-				auto handler = [offset, sourceAttributes, targetAttributes, source, &target](int64_t index) {
+				auto buff_intensity = points->attributesData["intensity"];
+				auto handler = [offset, sourceAttributes, targetAttributes, buff_intensity, &target](int64_t index) {
 					uint16_t intensity;
 
-					memcpy(&intensity, source + index * sourceAttributes.bytes + offset, 2);
+					memcpy(&intensity, buff_intensity->data_u8 + index * sourceAttributes.bytes + offset, 2);
 
 					target.write(reinterpret_cast<const char*>(&intensity), 2);
 				};

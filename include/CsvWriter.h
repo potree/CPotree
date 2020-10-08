@@ -132,29 +132,33 @@ struct CsvWriter : public Writer {
 		stream->setf(ios::fixed);
 	}
 
-	void write(Attributes& inputAttributes, Node* node, shared_ptr<Buffer> data, int64_t numAccepted, int64_t numRejected) {
+	void write(Node* node, shared_ptr<Points> points, int64_t numAccepted, int64_t numRejected) {
 
 		lock_guard<mutex> lock(mtx_write);
 
+		auto inputAttributes = points->attributes;
 		auto handlers = createAttributeHandlers(stream, inputAttributes, outputAttributes);
 
-		int64_t numPoints = data->size / inputAttributes.bytes;
+		int64_t numPoints = points->numPoints;
 
-		int posOffset = inputAttributes.getOffset("position");
+		cout << "TODO" << endl;
+		exit(123);
 
-		dvec3 scale = inputAttributes.posScale;
-		dvec3 offset = inputAttributes.posOffset;
+		//int posOffset = inputAttributes.getOffset("position");
 
-		for (int64_t i = 0; i < numPoints; i++) {
+		//dvec3 scale = inputAttributes.posScale;
+		//dvec3 offset = inputAttributes.posOffset;
 
-			for (auto& handler : handlers) {
-				handler(i, data->data_u8);
-			}
+		//for (int64_t i = 0; i < numPoints; i++) {
 
-			if (i < numPoints - 1) {
-				*stream << endl;
-			}
-		}
+		//	for (auto& handler : handlers) {
+		//		handler(i, data->data_u8);
+		//	}
+
+		//	if (i < numPoints - 1) {
+		//		*stream << endl;
+		//	}
+		//}
 
 	}
 

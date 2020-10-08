@@ -169,7 +169,7 @@ int main(int argc, char** argv) {
 				totalAccepted += numAccepted;
 				totalRejected += numRejected;
 
-				//writer->write(sourceAttributes, node, data, numAccepted, numRejected);
+				writer->write(node, points, numAccepted, numRejected);
 			});
 
 		};

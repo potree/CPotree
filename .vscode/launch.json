@@ -10,12 +10,16 @@
 			"name": "(Windows) Launch",
 			"type": "cppvsdbg",
 			"request": "launch",
-			"program": "${workspaceFolder}/build/bin/Release_x64/filter.exe",
+			"program": "${workspaceFolder}/build/Release/CPotree.exe",
 			"args": [
 				// "D:/temp/test/eclepens.las",
 				// "D:/temp/test/nvidia",
+
 				"D:/temp/test/eclepens.laz",
-				"-o", "D:/temp/test.potree",
+				"-o", "D:/temp/test.las",
+
+				// "D:/temp/test/eclepens_uncompressed",
+				// "-o", "D:/temp/test_uncompressed.las",
 
 				"--area",
 				// eclepens
@@ -23,7 +27,7 @@
 
 				"--output-attributes", "rgb",
 				"--min-level", "0", 
-				"--max-level", "8", 
+				"--max-level", "5", 
 
 				// heidentor
 				// "profile(0.28, [0.128, -3.573],[-0.164, 0.195],[-2.537, 0.101])"

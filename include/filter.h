@@ -395,20 +395,62 @@ shared_ptr<Points> readNode(bool isBrotliEncoded, Attributes& attributes, string
 
 				}
 				
+				offset += 16 * node->numPoints; 
 
+			} else if (attribute.name == "rgb"){
 
-			} else {
+				for (int64_t i = 0; i < points->numPoints; i++) {
+					uint32_t mc_0, mc_1;
+					memcpy(&mc_0, decoded_buffer + offset + 8 * i + 4, 4);
+					memcpy(&mc_1, decoded_buffer + offset + 8 * i + 0, 4);
+
+					int64_t r = dealign24b((mc_1 & 0x00FFFFFF) >> 0)
+						| (dealign24b(((mc_1 >> 24) | (mc_0 << 8)) >> 0) << 8);
+
+					int64_t g = dealign24b((mc_1 & 0x00FFFFFF) >> 1)
+						| (dealign24b(((mc_1 >> 24) | (mc_0 << 8)) >> 1) << 8);
+
+					int64_t b = dealign24b((mc_1 & 0x00FFFFFF) >> 2)
+						| (dealign24b(((mc_1 >> 24) | (mc_0 << 8)) >> 2) << 8);
 				
-				memcpy(buffer->data, decoded_buffer + offset, attributeDataSize);
+					memcpy(buffer->data_u8 + 6 * i + 0, &r, 2);
+					memcpy(buffer->data_u8 + 6 * i + 2, &g, 2);
+					memcpy(buffer->data_u8 + 6 * i + 4, &b, 2);
+				}
 
+				offset += 8 * node->numPoints; ;
+			} else {
+				memcpy(buffer->data, decoded_buffer + offset, attributeDataSize);
+				offset += attributeDataSize;
 			}
 
 			points->attributesData[name] = buffer;
-			offset += attributeDataSize;
+			
 		}
 
 	} else {
 
+		int64_t attributeOffset = 0;
+		
+		for (auto& attribute : attributes.list) {
+
+			int64_t attributeDataSize = attribute.size * node->numPoints;
+			string name = attribute.name;
+			auto buffer = make_shared<Buffer>(attributeDataSize);
+			
+			int64_t offsetTarget = 0;
+
+			for (int64_t i = 0; i < points->numPoints; i++) {
+
+				memcpy(buffer->data_u8 + offsetTarget, data.data() + i * attributes.bytes + attributeOffset, attribute.size);
+				offsetTarget += attribute.size;
+
+			}
+
+
+			points->attributesData[name] = buffer;
+			attributeOffset += attribute.size;
+		}
 
 	}
 
@@ -522,8 +564,6 @@ void filterPointcloud(string path, Area area, int minLevel, int maxLevel, functi
 		
 		{
 			lock_guard<mutex> lock(mtx_accept);
-
-			
 
 			callback(node, points, numAccepted, numRejected);
 		}

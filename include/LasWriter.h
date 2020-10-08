@@ -32,27 +32,32 @@ using std::mutex;
 using std::lock_guard;
 
 
-vector<function<void(int64_t, uint8_t*)>> createAttributeHandlers(laszip_header* header, laszip_point* point, Attributes& attributes, Attributes outputAttributes) {
+vector<function<void(int64_t)>> createAttributeHandlers(laszip_header* header, laszip_point* point, shared_ptr<Points> points, Attributes outputAttributes) {
 
-	vector<function<void(int64_t, uint8_t*)>> handlers;
+	vector<function<void(int64_t)>> handlers;
+
+	auto& inputAttributes = points->attributes;
 
 	{ // STANDARD LAS ATTRIBUTES
 
-		unordered_map<string, function<void(int64_t, uint8_t*)>> mapping;
+		unordered_map<string, function<void(int64_t)>> mapping;
 
 		{ // POSITION
-			int offset = attributes.getOffset("position");
-			auto handler = [header, point, offset, attributes](int64_t index, uint8_t* data) {
+			auto attribute = inputAttributes.get("position");
+			auto buff_position = points->attributesData["position"];
+			auto posScale = inputAttributes.posScale;
+			auto posOffset = inputAttributes.posOffset;
+			auto handler = [header, point, buff_position, attribute, posScale, posOffset](int64_t index) {
 
 				int32_t X, Y, Z;
 
-				memcpy(&X, data + index * attributes.bytes + offset + 0, 4);
-				memcpy(&Y, data + index * attributes.bytes + offset + 4, 4);
-				memcpy(&Z, data + index * attributes.bytes + offset + 8, 4);
+				memcpy(&X, buff_position->data_u8 + index * attribute->size + 0, 4);
+				memcpy(&Y, buff_position->data_u8 + index * attribute->size + 4, 4);
+				memcpy(&Z, buff_position->data_u8 + index * attribute->size + 8, 4);
 
-				double x = double(X) * attributes.posScale.x + attributes.posOffset.x;
-				double y = double(Y) * attributes.posScale.y + attributes.posOffset.y;
-				double z = double(Z) * attributes.posScale.z + attributes.posOffset.z;
+				double x = double(X) * posScale.x + posOffset.x;
+				double y = double(Y) * posScale.y + posOffset.y;
+				double z = double(Z) * posScale.z + posOffset.z;
 
 				point->X = (x - header->x_offset) / header->x_scale_factor;
 				point->Y = (y - header->y_offset) / header->y_scale_factor;
@@ -63,20 +68,22 @@ vector<function<void(int64_t, uint8_t*)>> createAttributeHandlers(laszip_header*
 		}
 
 		{ // RGB
-			int offset = attributes.getOffset("rgb");
-			auto handler = [point, offset, attributes](int64_t index, uint8_t* data) {
+			auto attribute = inputAttributes.get("rgb");
+			auto source = points->attributesData["rgb"];
+			auto handler = [point, source, attribute](int64_t index) {
 				auto& rgba = point->rgb;
 
-				memcpy(&rgba, data + index * attributes.bytes + offset, 6);
+				memcpy(&rgba, source->data_u8 + index * attribute->size, 6);
 			};
 
 			mapping["rgb"] = handler;
 		}
 
 		{ // INTENSITY
-			int offset = attributes.getOffset("intensity");
-			auto handler = [point, offset, attributes](int64_t index, uint8_t* data) {
-				memcpy(&point->intensity, data + index * attributes.bytes + offset, 2);
+			auto attribute = inputAttributes.get("intensity");
+			auto source = points->attributesData["intensity"];
+			auto handler = [point, source, attribute](int64_t index) {
+				memcpy(&point->intensity, source->data_u8 + index * attribute->size, 2);
 			};
 
 			mapping["intensity"] = handler;
@@ -155,26 +162,27 @@ struct LasWriter : public Writer {
 		laszip_get_point_pointer(laszip_writer, &point);
 	}
 
-	void write(Attributes& inputAttributes, Node* node, shared_ptr<Buffer> data, int64_t numAccepted, int64_t numRejected) {
+	void write(Node* node, shared_ptr<Points> points, int64_t numAccepted, int64_t numRejected) {
 
 		lock_guard<mutex> lock(mtx_write);
 
-		auto handlers = createAttributeHandlers(&header, point, inputAttributes, outputAttributes);
+		auto& inputAttributes = points->attributes;
+		auto handlers = createAttributeHandlers(&header, point, points, outputAttributes);
 
-		int64_t numPoints = data->size / inputAttributes.bytes;
-
-		int posOffset = inputAttributes.getOffset("position");
+		int64_t numPoints = points->numPoints;
 
 		dvec3 scale = inputAttributes.posScale;
 		dvec3 offset = inputAttributes.posOffset;
+
+		auto buff_position = points->attributesData["position"];
 
 		for (int64_t i = 0; i < numPoints; i++) {
 
 			int32_t X, Y, Z;
 
-			memcpy(&X, data->data_u8 + i * inputAttributes.bytes + posOffset + 0, 4);
-			memcpy(&Y, data->data_u8 + i * inputAttributes.bytes + posOffset + 4, 4);
-			memcpy(&Z, data->data_u8 + i * inputAttributes.bytes + posOffset + 8, 4);
+			memcpy(&X, buff_position->data_u8 + i * 12 + 0, 4);
+			memcpy(&Y, buff_position->data_u8 + i * 12 + 4, 4);
+			memcpy(&Z, buff_position->data_u8 + i * 12 + 8, 4);
 
 			double x = double(X) * scale.x + offset.x;
 			double y = double(Y) * scale.y + offset.y;
@@ -183,7 +191,7 @@ struct LasWriter : public Writer {
 			aabb.expand(x, y, z);
 
 			for (auto& handler : handlers) {
-				handler(i, data->data_u8);
+				handler(i);
 			}
 
 			numWrittenPoints++;
