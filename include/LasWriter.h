@@ -152,12 +152,15 @@ struct LasWriter : public Writer {
 		//header.number_of_point_records = 111; // must be updated at the end
 		header.extended_number_of_point_records = 111;
 
+		
+		laszip_BOOL compress = path.ends_with(".laz") || path.ends_with(".LAZ");
 		laszip_BOOL request_writer = 1;
 		laszip_request_compatibility_mode(laszip_writer, request_writer);
+		//laszip_set_chunk_size(laszip_writer, 50'000);
 
 		laszip_set_header(laszip_writer, &header);
 
-		laszip_open_writer(laszip_writer, path.c_str(), true);
+		laszip_open_writer(laszip_writer, path.c_str(), compress);
 
 		laszip_get_point_pointer(laszip_writer, &point);
 	}

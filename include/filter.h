@@ -49,6 +49,122 @@ struct AreaMinMax {
 struct Profile {
 	vector<dvec3> points;
 	double width = 0.0;
+
+
+	// see https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line#Line_defined_by_two_points
+	bool inside(dvec3 point) {
+
+		for (int i = 0; i < points.size() - 1; i++) {
+			auto p0 = points[i + 0];
+			auto p1 = points[i + 1];
+			dvec3 point_grounded = { point.x, point.y, 0.0 };
+
+			// adapted from three.js: https://github.com/mrdoob/three.js/blob/3292d6ddd99228be9c9bd152376cc0f5e0fbe489/src/math/Line3.js#L91
+
+			if (glm::distance(point, dvec3(183.44, -83.55, -36.30)) < 1.0) {
+				int dbg = 10;
+			}
+
+			auto start = p0;
+			auto end = p1;
+			auto startP = point_grounded - start;
+			auto startEnd = end - start;
+
+			auto startEnd2 = glm::dot(startEnd, startEnd);
+			auto startEnd_startP = glm::dot(startEnd, startP);
+
+			auto t = startEnd_startP / startEnd2;
+
+			if (t < 0.0) {
+				continue;
+			}
+
+			if (t > 1.0) {
+				continue;
+			}
+
+			auto pointOnLine = (1.0 - t) * start + t * end;
+			auto distance = glm::distance(pointOnLine, point_grounded);
+
+			if (distance < width / 2.0) {
+				return true;
+			}
+
+
+			//_startP.subVectors(point, this.start);
+			//_startEnd.subVectors(this.end, this.start);
+
+			//const startEnd2 = _startEnd.dot(_startEnd);
+			//const startEnd_startP = _startEnd.dot(_startP);
+
+			//let t = startEnd_startP / startEnd2;
+
+			//if (clampToLine) {
+
+			//	t = MathUtils.clamp(t, 0, 1);
+
+			//}
+
+			//return t;
+
+			//double x0 = point.x;
+			//double y0 = point.y;
+			//double x1 = p0.x;
+			//double y1 = p0.y;
+			//double x2 = p1.x;
+			//double y2 = p1.y;
+
+			//double area2 = abs((y2 - y1) * x0 - (x2 - x1) * y0 + x2 * y1 - y2 * x1);
+			//double b = sqrt((y2 - y1) * (y2 - y1) + (x2 - x1) * (x2 - x1));
+			//double distance = area2 / b;
+
+			//if (distance < width / 2.0) {
+
+			//	if (point.y > 183.0) {
+			//		int dbg = 10;
+			//	}
+
+			//	return true;
+			//}
+
+		}
+
+		return false;
+	}
+
+	bool intersects(AABB aabb) {
+
+		for (int i = 0; i < points.size() - 1; i++) {
+			auto p0 = points[i + 0];
+			auto p1 = points[i + 1];
+			auto cz = (aabb.min.z + aabb.max.z) / 2.0;
+
+			dvec3 start = { p0.x, p0.y, cz };
+			dvec3 end = { p1.x, p1.y, cz };
+			dvec3 delta = end - start;
+			double length = glm::length(delta);
+			double angle = glm::atan(delta.y, delta.x);
+
+			dvec3 size = { length, width, 2.0 * (aabb.max.z - aabb.min.z)};
+
+			dmat4 box = glm::translate(dmat4(), start)
+				* glm::rotate(dmat4(), angle, { 0.0, 0.0, 1.0 })
+				* glm::scale(dmat4(), size)
+				* glm::translate(dmat4(), { 0.5, 0.0, 0.0 });
+
+			auto ob = OrientedBox(box);
+			
+			bool I = ob.intersects(aabb);
+
+			if (I) {
+				return true;
+			}
+
+		}
+
+		return false;
+
+	}
 };
 
 struct Area {
@@ -172,16 +288,30 @@ vector<OrientedBox> parseAreaMatrices(string strArea) {
 vector<Profile> parseAreaProfile(string strArea) {
 	vector<Profile> profiles;
 
-	auto matches = getRegexMatches(strArea, "profile\\(([^)]*)\\)");
+	auto matches = getRegexMatches(strArea, "profile\\(([^\\)]*)\\)");
 	for (string match : matches) {
 
 		Profile profile;
 
-		cout << "'" << match << "'" << endl;
+		auto matchWidth = getRegexMatches(match, "[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)");
+		auto matchesSegments = getRegexMatches(match, "(\\[.*?\\])");
 
+		double width = stod(matchWidth[0]);
+		profile.width = width;
+
+		for (string matchSegment : matchesSegments) {
+			auto matchesNumbers = getRegexMatches(matchSegment, "[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)");
+
+			double x = stod(matchesNumbers[0]);
+			double y = stod(matchesNumbers[1]);
+
+			dvec3 point = { x, y, 0.0 };
+			profile.points.push_back(point);
+
+		}
+
+		profiles.push_back(profile);
 	}
-
-	exit(123);
 
 	return profiles;
 }
@@ -192,7 +322,7 @@ Area parseArea(string strArea) {
 
 	area.minmaxs = parseAreaMinMax(strArea);
 	area.orientedBoxes = parseAreaMatrices(strArea);
-	//area.profiles = parseAreaProfile(strArea);
+	area.profiles = parseAreaProfile(strArea);
 
 	return area;
 }
@@ -212,11 +342,15 @@ bool intersects(Node* node, Area& area) {
 	}
 
 	for (auto& box : area.orientedBoxes) {
-		
 		if (box.intersects(a)) {
 			return true;
 		}
+	}
 
+	for (auto& profile : area.profiles) {
+		if (profile.intersects(a)) {
+			return true;
+		}
 	}
 	
 	return false;
@@ -238,6 +372,12 @@ bool intersects(dvec3 point, Area& area) {
 
 	for (auto& orientedBoxes : area.orientedBoxes) {
 		if (orientedBoxes.inside(point)) {
+			return true;
+		}
+	}
+
+	for (auto& profile: area.profiles) {
+		if (profile.inside(point)) {
 			return true;
 		}
 	}
@@ -571,38 +711,3 @@ void filterPointcloud(string path, Area area, int minLevel, int maxLevel, functi
 }
 
 
-
-
-//bool intersects(Node* node, AABB region) {
-//	// box test from three.js, src/math/Box3.js
-//
-//	AABB a = node->aabb;
-//	AABB b = region;
-//
-//	if (b.max.x < a.min.x || b.min.x > a.max.x ||
-//		b.max.y < a.min.y || b.min.y > a.max.y ||
-//		b.max.z < a.min.z || b.min.z > a.max.z) {
-//
-//		return false;
-//
-//	}
-//
-//	return true;
-//}
-//
-//bool intersects(dvec3 point, AABB region) {
-//
-//	if (point.x < region.min.x || point.x > region.max.x) {
-//		return false;
-//	}
-//
-//	if (point.y < region.min.y || point.y > region.max.y) {
-//		return false;
-//	}
-//
-//	if (point.z < region.min.z || point.z > region.max.z) {
-//		return false;
-//	}
-//
-//	return true;
-//}

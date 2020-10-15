@@ -155,6 +155,9 @@ int main(int argc, char** argv) {
 			writer = make_shared<CsvWriter>(targetpath, outputAttributes);
 		}  else if (iEndsWith(targetpath, "potree")) {
 			writer = make_shared<PotreeWriter>(targetpath, scale, offset, outputAttributes);
+		} else if(targetpath == "stdout"){
+			cout << "TODO: " << __FILE__ << ":" << __LINE__ << endl;
+			//writer = make_shared<PotreeWriter>(targetpath, scale, offset, outputAttributes);
 		} else {
 			cout << "ERROR: unkown output format, extension not known: " << targetpath << endl;
 		}

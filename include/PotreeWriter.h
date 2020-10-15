@@ -174,6 +174,8 @@ struct PotreeWriter : public Writer {
 		stream.write(reinterpret_cast<const char*>(&headerSize), 4);
 		stream.write(header.c_str(), headerSize);
 
+		outputAttributes.posOffset = aabb.min;
+
 		for (auto& task : backlog) {
 			for (int64_t i = 0; i < task.numAccepted; i++) {
 
