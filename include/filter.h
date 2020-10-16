@@ -47,9 +47,47 @@ struct AreaMinMax {
 };
 
 struct Profile {
+
+	struct Segment {
+		dvec3 start;
+		dvec3 end;
+		double length = 0.0;
+		dmat4 proj;
+	};
+
 	vector<dvec3> points;
 	double width = 0.0;
+	vector<Segment> segments;
 
+	void updateSegments() {
+		for (int i = 0; i < points.size() - 1; i++) {
+			auto start = points[i + 0];
+			auto end = points[i + 1];
+
+			dvec3 delta = end - start;
+			double length = glm::length(delta);
+			double angle = glm::atan(delta.y, delta.x);
+
+			// project to x: along profile/segment, y: depth, and z: elevation
+			dmat4 proj = glm::rotate(dmat4(), -angle, {0.0, 0.0, 1.0})
+				* glm::translate(dmat4(), {-start.x, -start.y, 0.0});
+
+			//dvec3 size = { length, width, bb.size().z };
+
+			//dmat4 box = glm::translate(dmat4(), start)
+			//	* glm::rotate(dmat4(), angle, { 0.0, 0.0, 1.0 })
+			//	* glm::scale(dmat4(), size)
+			//	* glm::translate(dmat4(), { 0.5, 0.0, 0.0 });
+
+			Segment segment;
+			segment.start = start;
+			segment.end = end;
+			segment.length = glm::distance(start, end);
+			segment.proj = proj;
+
+			segments.push_back(segment);
+		}
+	}
 
 	// see https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line#Line_defined_by_two_points
 	bool inside(dvec3 point) {
@@ -61,72 +99,47 @@ struct Profile {
 
 			// adapted from three.js: https://github.com/mrdoob/three.js/blob/3292d6ddd99228be9c9bd152376cc0f5e0fbe489/src/math/Line3.js#L91
 
-			if (glm::distance(point, dvec3(183.44, -83.55, -36.30)) < 1.0) {
-				int dbg = 10;
+			bool insideTestProj = false;
+			{
+				auto segment = segments[i];
+				auto projected = segment.proj * dvec4(point, 1.0);
+
+				bool insideX = projected.x > 0.0 && projected.x < segment.length;
+				bool insideDepth = projected.y >= -width / 2.0 && projected.y <= width / 2.0;
+				bool inside = insideX && insideDepth;
+
+				insideTestProj = inside;
 			}
-
-			auto start = p0;
-			auto end = p1;
-			auto startP = point_grounded - start;
-			auto startEnd = end - start;
-
-			auto startEnd2 = glm::dot(startEnd, startEnd);
-			auto startEnd_startP = glm::dot(startEnd, startP);
-
-			auto t = startEnd_startP / startEnd2;
-
-			if (t < 0.0) {
-				continue;
-			}
-
-			if (t > 1.0) {
-				continue;
-			}
-
-			auto pointOnLine = (1.0 - t) * start + t * end;
-			auto distance = glm::distance(pointOnLine, point_grounded);
-
-			if (distance < width / 2.0) {
+			
+			if (insideTestProj) {
 				return true;
 			}
 
 
-			//_startP.subVectors(point, this.start);
-			//_startEnd.subVectors(this.end, this.start);
+			//auto start = p0;
+			//auto end = p1;
+			//auto startP = point_grounded - start;
+			//auto startEnd = end - start;
 
-			//const startEnd2 = _startEnd.dot(_startEnd);
-			//const startEnd_startP = _startEnd.dot(_startP);
+			//auto startEnd2 = glm::dot(startEnd, startEnd);
+			//auto startEnd_startP = glm::dot(startEnd, startP);
 
-			//let t = startEnd_startP / startEnd2;
+			//auto t = startEnd_startP / startEnd2;
 
-			//if (clampToLine) {
-
-			//	t = MathUtils.clamp(t, 0, 1);
-
+			//if (t < 0.0) {
+			//	continue;
 			//}
 
-			//return t;
+			//if (t > 1.0) {
+			//	continue;
+			//}
 
-			//double x0 = point.x;
-			//double y0 = point.y;
-			//double x1 = p0.x;
-			//double y1 = p0.y;
-			//double x2 = p1.x;
-			//double y2 = p1.y;
-
-			//double area2 = abs((y2 - y1) * x0 - (x2 - x1) * y0 + x2 * y1 - y2 * x1);
-			//double b = sqrt((y2 - y1) * (y2 - y1) + (x2 - x1) * (x2 - x1));
-			//double distance = area2 / b;
+			//auto pointOnLine = (1.0 - t) * start + t * end;
+			//auto distance = glm::distance(pointOnLine, point_grounded);
 
 			//if (distance < width / 2.0) {
-
-			//	if (point.y > 183.0) {
-			//		int dbg = 10;
-			//	}
-
 			//	return true;
 			//}
-
 		}
 
 		return false;
@@ -310,6 +323,8 @@ vector<Profile> parseAreaProfile(string strArea) {
 
 		}
 
+		profile.updateSegments();
+
 		profiles.push_back(profile);
 	}
 
@@ -408,8 +423,33 @@ int64_t getNumCandidates(string path, Area area) {
 }
 
 struct Points {
+
 	Attributes attributes;
-	unordered_map<string, shared_ptr<Buffer>> attributesData;
+	vector<shared_ptr<Buffer>> attributeBuffers;
+	unordered_map<string, shared_ptr<Buffer>> attributeBuffersMap;
+
+	void addAttributeBuffer(Attribute attribute, shared_ptr<Buffer> buffer) {
+
+		attributeBuffersMap[attribute.name] = buffer;
+		attributeBuffers.push_back(buffer);
+
+	}
+
+	dvec3 getPosition(int64_t i) {
+		auto& buffer = attributeBuffers[0]; // assuming the first buffer is always position
+
+		int32_t X, Y, Z;
+		memcpy(&X, buffer->data_u8 + i * 12 + 0, 4);
+		memcpy(&Y, buffer->data_u8 + i * 12 + 4, 4);
+		memcpy(&Z, buffer->data_u8 + i * 12 + 8, 4);
+
+		dvec3 position;
+		position.x = X * attributes.posScale.x + attributes.posOffset.x;
+		position.y = Y * attributes.posScale.y + attributes.posOffset.y;
+		position.z = Z * attributes.posScale.z + attributes.posOffset.z;
+
+		return position;
+	}
 
 	int64_t numPoints;
 };
@@ -564,7 +604,8 @@ shared_ptr<Points> readNode(bool isBrotliEncoded, Attributes& attributes, string
 				offset += attributeDataSize;
 			}
 
-			points->attributesData[name] = buffer;
+			//points->attribute[name] = buffer;
+			points->addAttributeBuffer(attribute, buffer);
 			
 		}
 
@@ -588,7 +629,8 @@ shared_ptr<Points> readNode(bool isBrotliEncoded, Attributes& attributes, string
 			}
 
 
-			points->attributesData[name] = buffer;
+			//points->attributesData[name] = buffer;
+			points->addAttributeBuffer(attribute, buffer);
 			attributeOffset += attribute.size;
 		}
 
@@ -600,6 +642,55 @@ shared_ptr<Points> readNode(bool isBrotliEncoded, Attributes& attributes, string
 	
 
 	return points;
+}
+
+
+void loadPoints(string path, Area area, int minLevel, int maxLevel, function<void(Node*, shared_ptr<Points>)> callback) {
+
+	double tStart = now();
+
+	string metadataPath = path + "/metadata.json";
+	string octreePath = path + "/octree.bin";
+
+	string strMetadata = readTextFile(metadataPath);
+	json jsMetadata = json::parse(strMetadata);
+
+	auto hierarchy = loadHierarchy(path, jsMetadata);
+
+	vector<Node*> clippedNodes;
+	for (auto node : hierarchy.nodes) {
+
+		bool inArea = intersects(node, area);
+		bool inLevelRange = node->level() >= minLevel && node->level() <= maxLevel;
+
+		if (inArea && inLevelRange) {
+			clippedNodes.push_back(node);
+		}
+
+	}
+
+	auto attributes = parseAttributes(jsMetadata);
+
+	dvec3 scale;
+	scale.x = jsMetadata["scale"][0];
+	scale.y = jsMetadata["scale"][1];
+	scale.z = jsMetadata["scale"][2];
+
+	dvec3 offset;
+	offset.x = jsMetadata["offset"][0];
+	offset.y = jsMetadata["offset"][1];
+	offset.z = jsMetadata["offset"][2];
+
+	mutex mtx_accept;
+
+	auto parallel = std::execution::par_unseq;
+	for_each(parallel, clippedNodes.begin(), clippedNodes.end(), [&jsMetadata, octreePath, &attributes, scale, offset, &area, &mtx_accept, &callback](Node* node) {
+
+		bool isBrotliEncoded = jsMetadata["encoding"] == "BROTLI";
+		auto points = readNode(isBrotliEncoded, attributes, octreePath, node);
+
+		callback(node, points);
+	});
 }
 
 
@@ -656,7 +747,7 @@ void filterPointcloud(string path, Area area, int minLevel, int maxLevel, functi
 		vector<int64_t> acceptedIndices;
 
 		auto aPosition = points->attributes.get("position");
-		auto buf_position = points->attributesData["position"];
+		auto buf_position = points->attributeBuffersMap["position"];
 		for (int64_t i = 0; i < points->numPoints; i++) {
 			int64_t byteOffset = i * 12;
 
@@ -685,7 +776,7 @@ void filterPointcloud(string path, Area area, int minLevel, int maxLevel, functi
 
 		for (auto& attribute : points->attributes.list) {
 
-			shared_ptr<Buffer> data = points->attributesData[attribute.name];
+			shared_ptr<Buffer> data = points->attributeBuffersMap[attribute.name];
 			int64_t targetOffset = 0;
 
 			for (int64_t acceptedIndex : acceptedIndices) {

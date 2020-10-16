@@ -44,7 +44,7 @@ vector<function<void(int64_t)>> createAttributeHandlers(laszip_header* header, l
 
 		{ // POSITION
 			auto attribute = inputAttributes.get("position");
-			auto buff_position = points->attributesData["position"];
+			auto buff_position = points->attributeBuffersMap["position"];
 			auto posScale = inputAttributes.posScale;
 			auto posOffset = inputAttributes.posOffset;
 			auto handler = [header, point, buff_position, attribute, posScale, posOffset](int64_t index) {
@@ -69,7 +69,7 @@ vector<function<void(int64_t)>> createAttributeHandlers(laszip_header* header, l
 
 		{ // RGB
 			auto attribute = inputAttributes.get("rgb");
-			auto source = points->attributesData["rgb"];
+			auto source = points->attributeBuffersMap["rgb"];
 			auto handler = [point, source, attribute](int64_t index) {
 				auto& rgba = point->rgb;
 
@@ -81,7 +81,7 @@ vector<function<void(int64_t)>> createAttributeHandlers(laszip_header* header, l
 
 		{ // INTENSITY
 			auto attribute = inputAttributes.get("intensity");
-			auto source = points->attributesData["intensity"];
+			auto source = points->attributeBuffersMap["intensity"];
 			auto handler = [point, source, attribute](int64_t index) {
 				memcpy(&point->intensity, source->data_u8 + index * attribute->size, 2);
 			};
@@ -177,7 +177,7 @@ struct LasWriter : public Writer {
 		dvec3 scale = inputAttributes.posScale;
 		dvec3 offset = inputAttributes.posOffset;
 
-		auto buff_position = points->attributesData["position"];
+		auto buff_position = points->attributeBuffersMap["position"];
 
 		for (int64_t i = 0; i < numPoints; i++) {
 

@@ -5,7 +5,8 @@
 		"*.fs": "cpp",
 		"functional": "cpp",
 		"vector": "cpp",
-		"unordered_map": "cpp"
+		"unordered_map": "cpp",
+		"xstring": "cpp"
 	},
 	"files.trimTrailingWhitespace": false,
 	"editor.fontSize": 28,

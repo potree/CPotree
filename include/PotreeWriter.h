@@ -139,7 +139,7 @@ struct PotreeWriter : public Writer {
 		dvec3 scale = inputAttributes.posScale;
 		dvec3 offset = inputAttributes.posOffset;
 
-		auto buff_position = points->attributesData["position"];
+		auto buff_position = points->attributeBuffersMap["position"];
 
 		for(int64_t i = 0; i < numAccepted; i++){
 			int32_t X, Y, Z;
@@ -203,15 +203,15 @@ struct PotreeWriter : public Writer {
 			unordered_map<string, function<void(int64_t)>> mapping;
 
 			{ // POSITION
-				int offset = sourceAttributes.getOffset("position");
-				auto buff_position = points->attributesData["position"];
-				auto handler = [offset, sourceAttributes, targetAttributes, buff_position, &target](int64_t index) {
+				auto attribute = sourceAttributes.get("position");
+				auto buff_position = points->attributeBuffersMap["position"];
+				auto handler = [sourceAttributes, targetAttributes, buff_position, &target, attribute](int64_t index) {
 
 					int32_t X, Y, Z;
 
-					memcpy(&X, buff_position->data_u8 + index * sourceAttributes.bytes + offset + 0, 4);
-					memcpy(&Y, buff_position->data_u8 + index * sourceAttributes.bytes + offset + 4, 4);
-					memcpy(&Z, buff_position->data_u8 + index * sourceAttributes.bytes + offset + 8, 4);
+					memcpy(&X, buff_position->data_u8 + index * attribute->size+ 0, 4);
+					memcpy(&Y, buff_position->data_u8 + index * attribute->size+ 4, 4);
+					memcpy(&Z, buff_position->data_u8 + index * attribute->size+ 8, 4);
 
 					double x = double(X) * sourceAttributes.posScale.x + sourceAttributes.posOffset.x;
 					double y = double(Y) * sourceAttributes.posScale.y + sourceAttributes.posOffset.y;
@@ -230,26 +230,26 @@ struct PotreeWriter : public Writer {
 			}
 
 			{ // RGB
-				int offset = sourceAttributes.getOffset("rgb");
-				auto buff_rgb = points->attributesData["rgb"];
-				auto handler = [offset, sourceAttributes, targetAttributes, buff_rgb, &target](int64_t index) {
+				auto attribute = sourceAttributes.get("rgb");
+				auto buff_rgb = points->attributeBuffersMap["rgb"];
+				auto handler = [sourceAttributes, targetAttributes, buff_rgb, &target, attribute](int64_t index) {
 					uint16_t rgb[3];
 
-					memcpy(&rgb, buff_rgb->data_u8 + index * sourceAttributes.bytes + offset, 6);
+					memcpy(&rgb, buff_rgb->data_u8 + index * attribute->size, attribute->size);
 
-					target.write(reinterpret_cast<const char*>(&rgb), 6);
+					target.write(reinterpret_cast<const char*>(&rgb), attribute->size);
 				};
 
 				mapping["rgb"] = handler;
 			}
 
 			{ // INTENSITY
-				int offset = sourceAttributes.getOffset("intensity");
-				auto buff_intensity = points->attributesData["intensity"];
-				auto handler = [offset, sourceAttributes, targetAttributes, buff_intensity, &target](int64_t index) {
+				auto attribute = sourceAttributes.get("intensity");
+				auto buff_intensity = points->attributeBuffersMap["intensity"];
+				auto handler = [sourceAttributes, targetAttributes, buff_intensity, &target, attribute](int64_t index) {
 					uint16_t intensity;
 
-					memcpy(&intensity, buff_intensity->data_u8 + index * sourceAttributes.bytes + offset, 2);
+					memcpy(&intensity, buff_intensity->data_u8 + index * attribute->size, attribute->size);
 
 					target.write(reinterpret_cast<const char*>(&intensity), 2);
 				};
@@ -262,6 +262,17 @@ struct PotreeWriter : public Writer {
 
 				if (mapping.find(attribute.name) != mapping.end()) {
 					handlers.push_back(mapping[attribute.name]);
+				} else {
+
+					auto source = points->attributeBuffersMap[attribute.name];
+
+					auto handler = [&target, &attribute, source](int64_t index) {
+
+						const char* ptr = reinterpret_cast<const char*>(source->data_u8 + index * attribute.size);
+						target.write(ptr, attribute.size);
+					};
+
+					handlers.push_back(handler);
 				}
 			}
 

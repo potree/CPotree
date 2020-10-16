@@ -16,12 +16,19 @@ file(GLOB HEADER_FILES
 file(GLOB CPP_FILES
     "./src/*.cpp"
 )
+list(FILTER CPP_FILES EXCLUDE REGEX ".*executable_.*.cpp$")
+
+
+###############################################
+# CPotree
+###############################################
 
 add_executable(CPotree 
 	${HEADER_FILES}
 	${CPP_FILES}
 	./modules/unsuck/unsuck.hpp
 	./modules/unsuck/unsuck_platform_specific.cpp
+	./src/executable_cpotree.cpp
 )
 
 set(LASZIP_DIR "${PROJECT_SOURCE_DIR}/libs/laszip")
@@ -46,9 +53,48 @@ if (UNIX)
 	target_link_libraries(${PROJECT_NAME} Threads::Threads)
 	target_link_libraries(${PROJECT_NAME} tbb)
 
+	#SET(CMAKE_CXX_FLAGS "-pthread -ltbb")
+endif (UNIX)
+
+
+###############################################
+# extract_profile
+###############################################
+
+
+add_executable(extract_profile 
+	${HEADER_FILES}
+	${CPP_FILES}
+	./modules/unsuck/unsuck.hpp
+	./modules/unsuck/unsuck_platform_specific.cpp
+	./src/executable_extract_profile.cpp
+)
+
+#set(LASZIP_DIR "${PROJECT_SOURCE_DIR}/libs/laszip")
+#add_subdirectory(${LASZIP_DIR})
+target_link_libraries(extract_profile laszip)
+
+#set(BROTLI_DIR "${PROJECT_SOURCE_DIR}/libs/brotli")
+#add_subdirectory(${BROTLI_DIR})
+target_link_libraries(extract_profile brotlienc-static)
+target_link_libraries(extract_profile brotlidec-static)
+
+
+target_include_directories(extract_profile PRIVATE "./include")
+target_include_directories(extract_profile PRIVATE "./modules")
+target_include_directories(extract_profile PRIVATE "./libs")
+
+
+if (UNIX)
+	find_package(Threads REQUIRED)
+	find_package(TBB REQUIRED)
+	
+	target_link_libraries(${PROJECT_NAME} Threads::Threads)
+	target_link_libraries(${PROJECT_NAME} tbb)
 
 	#SET(CMAKE_CXX_FLAGS "-pthread -ltbb")
 endif (UNIX)
+
 
 ###############################################
 # COPY LICENSE FILES TO BINARY DIRECTORY
