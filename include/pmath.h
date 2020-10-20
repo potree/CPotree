@@ -40,6 +40,10 @@ struct AABB {
 		return max - min;
 	}
 
+	void expand(dvec3 vec) {
+		this->expand(vec.x, vec.y, vec.z);
+	}
+
 	void expand(double x, double y, double z) {
 		this->min.x = std::min(x, this->min.x);
 		this->min.y = std::min(y, this->min.y);

@@ -90,56 +90,27 @@ struct Profile {
 	}
 
 	// see https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line#Line_defined_by_two_points
+	// see three.js: https://github.com/mrdoob/three.js/blob/3292d6ddd99228be9c9bd152376cc0f5e0fbe489/src/math/Line3.js#L91
 	bool inside(dvec3 point) {
 
 		for (int i = 0; i < points.size() - 1; i++) {
-			auto p0 = points[i + 0];
-			auto p1 = points[i + 1];
-			dvec3 point_grounded = { point.x, point.y, 0.0 };
-
-			// adapted from three.js: https://github.com/mrdoob/three.js/blob/3292d6ddd99228be9c9bd152376cc0f5e0fbe489/src/math/Line3.js#L91
 
 			bool insideTestProj = false;
-			{
-				auto segment = segments[i];
-				auto projected = segment.proj * dvec4(point, 1.0);
+			
+			auto segment = segments[i];
+			auto projected = segment.proj * dvec4(point, 1.0);
 
-				bool insideX = projected.x > 0.0 && projected.x < segment.length;
-				bool insideDepth = projected.y >= -width / 2.0 && projected.y <= width / 2.0;
-				bool inside = insideX && insideDepth;
+			bool insideX = projected.x > 0.0 && projected.x < segment.length;
+			bool insideDepth = projected.y >= -width / 2.0 && projected.y <= width / 2.0;
+			bool inside = insideX && insideDepth;
 
-				insideTestProj = inside;
-			}
+			insideTestProj = inside;
+			
 			
 			if (insideTestProj) {
 				return true;
 			}
 
-
-			//auto start = p0;
-			//auto end = p1;
-			//auto startP = point_grounded - start;
-			//auto startEnd = end - start;
-
-			//auto startEnd2 = glm::dot(startEnd, startEnd);
-			//auto startEnd_startP = glm::dot(startEnd, startP);
-
-			//auto t = startEnd_startP / startEnd2;
-
-			//if (t < 0.0) {
-			//	continue;
-			//}
-
-			//if (t > 1.0) {
-			//	continue;
-			//}
-
-			//auto pointOnLine = (1.0 - t) * start + t * end;
-			//auto distance = glm::distance(pointOnLine, point_grounded);
-
-			//if (distance < width / 2.0) {
-			//	return true;
-			//}
 		}
 
 		return false;
@@ -432,6 +403,32 @@ struct Points {
 
 		attributeBuffersMap[attribute.name] = buffer;
 		attributeBuffers.push_back(buffer);
+
+	}
+
+	void addAttribute(Attribute attribute, shared_ptr<Buffer> buffer) {
+		attributes.add(attribute);
+		attributeBuffers.push_back(buffer);
+		attributeBuffersMap[attribute.name] = buffer;
+
+	}
+
+	void removeAttribute(string attributeName) {
+		
+		int index = -1;
+
+		for (int i = 0; i < attributes.list.size(); i++) {
+			if (attributes.list[i].name == attributeName) {
+				index = i;
+				break;
+			}
+		}
+
+		if (index >= 0) {
+			attributes.list.erase(attributes.list.begin() + index);
+			attributeBuffers.erase(attributeBuffers.begin() + index);
+			attributeBuffersMap.erase(attributeBuffersMap.find(attributeName));
+		}
 
 	}
 

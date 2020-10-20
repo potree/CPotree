@@ -37,6 +37,7 @@ Attributes computeAttributes(Arguments& args) {
 	Attribute position("position", 12, 3, 4, AttributeType::INT32);
 	Attribute rgb("rgb", 6, 3, 2, AttributeType::UINT16);
 	Attribute intensity("intensity", 2, 1, 2, AttributeType::UINT16);
+	Attribute position_projected_profile("position_projected_profile", 8, 2, 4, AttributeType::INT32);
 
 	unordered_map<string, Attribute> mapping = {
 		{"position", position},
@@ -67,6 +68,8 @@ Attributes computeAttributes(Arguments& args) {
 		list.push_back(rgb);
 		list.push_back(intensity);
 	}
+
+	list.push_back(position_projected_profile);
 
 	Attributes attributes(list);
 
@@ -134,15 +137,12 @@ int main(int argc, char** argv) {
 
 	auto tStart = now();
 
-	printElapsedTime("00", tStart);
-
 	Arguments args(argc, argv);
 
 	args.addArgument("source,i,", "input files");
 	args.addArgument("output,o", "output file or directory, depending on target format");
 	args.addArgument("coordinates", "coordinates of the profile segments. in the form \"{x0,y0},{x1,y1},...\"");
 	args.addArgument("width", "width of the profile");
-	//args.addArgument("area", "clip area");
 	args.addArgument("output-format", "LAS, LAZ, POTREE");
 	args.addArgument("min-level", "");
 	args.addArgument("max-level", "");
@@ -169,8 +169,6 @@ int main(int argc, char** argv) {
 	Profile profile = parseProfile(strCoordinates, width);
 	Area area;
 	area.profiles = { profile };
-
-	//Area area = parseArea(strArea);
 
 	sources = curateSources(sources);
 	auto stats = computeStats(sources);
@@ -207,13 +205,16 @@ int main(int argc, char** argv) {
 			cout << "ERROR: unkown output format, extension not known: " << targetpath << endl;
 		}
 
-
 		int64_t totalAccepted = 0;
 		int64_t totalRejected = 0;
 		for (string path : sources) {
 
 			// load points in nodes that intersect area, including points outside of that area
-			loadPoints(path, area, minLevel, maxLevel, [&writer, &area](Node* node, shared_ptr<Points> points) {
+			loadPoints(path, area, minLevel, maxLevel, [&writer, &area, &profile](Node* node, shared_ptr<Points> points) {
+
+				//stringstream ss;
+				//ss << std::this_thread::get_id() << ": loadPoints() begin" << endl;
+				//cout << ss.str();
 
 				auto numAccepted = 0;
 				auto numRejected = 0;
@@ -222,20 +223,55 @@ int main(int argc, char** argv) {
 				// iterate through points and realign data so that accepted points are packed at the beginning
 
 				auto& attributes = points->attributes;
-				int numAttributes = attributes.list.size();
+				//int numAttributes = attributes.list.size();
 
 
 				//auto rgb = points->attributeBuffersMap["rgb"];
+				
+				Attribute attribute_position_projected("position_projected_profile", 8, 2, 4, AttributeType::INT32);
+				shared_ptr<Buffer> buffer_position_projected = make_shared<Buffer>(8 * points->numPoints);
+
+				points->removeAttribute("position_projected_profile");
+				points->addAttribute(attribute_position_projected, buffer_position_projected);
 
 				for (int64_t i = 0; i < points->numPoints; i++) {
 					dvec3 position = points->getPosition(i);
 
-					bool isInside = intersects(position, area);
+					bool isAccepted = false;
+
+					double mileage = 0.0;
+					for (auto& segment : profile.segments) {
+						dvec3 projected = segment.proj * dvec4(position, 1.0);
+
+						bool insideX = projected.x > 0.0 && projected.x < segment.length;
+						bool insideDepth = projected.y >= -profile.width / 2.0 && projected.y <= profile.width / 2.0;
+						bool inside = insideX && insideDepth;
+
+						if (inside) {
+
+							// write projected position to attribute
+
+							int32_t X = (mileage + projected.x) / attributes.posScale.x;
+							int32_t Z = position.z / attributes.posScale.z;
+
+							buffer_position_projected->data_i32[2 * i + 0] = X;
+							buffer_position_projected->data_i32[2 * i + 1] = Z;
+
+
+							isAccepted = true;
+
+							break;
+						}
+
+						mileage += segment.length;
+					}
+
+					//bool isInside = intersects(position, area);
 					//bool niceColor = rgb->data_u16[3 * i + 1] > (100 << 8);
 
-					if (isInside/* && niceColor*/) {
+					if (isAccepted/* && niceColor*/) {
 
-						for (int j = 0; j < numAttributes; j++) {
+						for (int j = 0; j < attributes.list.size(); j++) {
 							auto& attribute = attributes.list[j];
 							auto& buffer = points->attributeBuffers[j];
 
@@ -253,7 +289,7 @@ int main(int argc, char** argv) {
 
 				{// update points properties
 
-					for (int i = 0; i < numAttributes; i++) {
+					for (int i = 0; i < attributes.list.size(); i++) {
 						auto& attribute = attributes.list[i];
 						auto& buffer = points->attributeBuffers[i];
 
@@ -263,13 +299,19 @@ int main(int argc, char** argv) {
 					points->numPoints = numAccepted;
 				}
 
-
 				writer->write(node, points, numAccepted, numRejected);
+
+				//{ // DEBUG MESSAGE
+				//	stringstream ss;
+				//	ss << std::this_thread::get_id() << ": loadPoints() end" << endl;
+				//	cout << ss.str();
+				//}
+				
 			});
 
 		};
 
-		cout << "#accepted: " << totalAccepted << ", #rejected: " << totalRejected << endl;
+		//cout << "#accepted: " << totalAccepted << ", #rejected: " << totalRejected << endl;
 
 		writer->close();
 	}

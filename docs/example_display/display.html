@@ -1,0 +1,146 @@
+<html>
+<head>
+
+<style>
+.cartesian {
+  display:flex;
+  transform: scaleY(-1);
+}
+
+svg{
+	border: 1px solid black;
+	margin: 5px;
+}
+
+canvas{
+	border: 1px solid black;
+	margin: 5px;
+}
+
+</style>
+
+</head>
+<body>
+
+<canvas id="canvas" width="800" height="600"></canvas>
+
+<script type="module">
+
+// const svgns = "http://www.w3.org/2000/svg";
+import JSON5 from "./libs/json5/json5.mjs";
+
+console.log(JSON5);
+
+let canvas = document.getElementById("canvas");
+let context = canvas.getContext("2d");
+
+let [width, height] = [800, 600];
+
+function drawPoint(x, y, r, rgb){
+	let rh = r / 2;
+
+	context.fillStyle = `rgb(${rgb.join(", ")})`;
+
+	context.fillRect(x - rh, height - y - rh, rh, rh);
+};
+
+function computeAttributeOffsets(baseOffset, attributes, numPoints){
+
+	let offset = baseOffset;
+	let offsets = {};
+
+	for(let attribute of attributes){
+		offsets[attribute.name] = offset;
+		offset += attribute.size * numPoints;
+	}
+
+	return offsets;
+}
+
+async function run(){
+
+	// setup page
+	context.fillStyle = `rgb(0, 0, 0)`;
+	context.fillRect(0, 0, width, height);
+
+	// load data
+	let response = await fetch("./cpotree_2.0.potree");
+	let buffer = await response.arrayBuffer();
+	let view = new DataView(buffer);
+	let metadataSize = view.getInt32(0, true);
+	let bufferMetadata = buffer.slice(4, 4 + metadataSize);
+	let dec = new TextDecoder("utf-8");
+	let txtMetadata = dec.decode(bufferMetadata);
+
+	let jsonMetadata = JSON5.parse(txtMetadata);
+	let attributes = jsonMetadata.attributes;
+	let boundingBox = jsonMetadata.boundingBox;
+	let numPoints = jsonMetadata.points;
+	let scale = jsonMetadata.scale;
+	let offset = jsonMetadata.boundingBox.min;
+
+	// attributes are stored in struct-of-array layout, i.e., first all positions, then all intensity, etc..
+	// compute offsets to the first attribute values in the buffer
+	let attributeOffsets = computeAttributeOffsets(4 + metadataSize, attributes, numPoints);
+	console.log(attributeOffsets);
+
+	// we're going to draw the elevation profile based on the projected position attribute and rgb values
+	// get respective offsets
+	let aProjected = attributes.find(a => a.name === "position_projected_profile");
+	let aRGB = attributes.find(a => a.name === "rgb");
+	let offsetProjected = attributeOffsets["position_projected_profile"];
+	let offsetRGB = attributeOffsets["rgb"];
+
+	// read projected position and rgb value of points
+	let readPoint = (index) => {
+
+		let MILEAGE = view.getInt32(offsetProjected + index * aProjected.size + 0, true);
+		let ELEVATION = view.getInt32(offsetProjected + index * aProjected.size + 4, true);
+
+		let mileage = MILEAGE * scale;
+		let elevation = ELEVATION * scale;
+
+		let r, g, b;
+		if(aRGB){
+			let R = view.getUint16(offsetRGB + index * aRGB.size + aRGB.elementSize, true);
+			let G = view.getUint16(offsetRGB + index * aRGB.size + aRGB.elementSize, true);
+			let B = view.getUint16(offsetRGB + index * aRGB.size + aRGB.elementSize, true);
+
+			r = R > 255 ? R / 256 : R;
+			g = G > 255 ? G / 256 : G;
+			b = B > 255 ? B / 256 : B;
+		}else{
+			r = 255;
+			g = 0;
+			b = 0;
+		}
+
+		let point = {
+			mileage: mileage,
+			elevation: elevation,
+			rgb: [r, g, b],
+		};
+
+		return point;
+	};
+
+	// iterate through and draw all the points
+	for(let i = 0; i < numPoints; i++){
+
+		let point = readPoint(i);
+
+		let x = point.mileage;
+		let y = point.elevation - boundingBox.min[2];
+
+		let circle = drawPoint(x, y, 2, point.rgb);
+	}
+	
+}
+
+run();
+
+
+</script>
+
+</body>
+</html>

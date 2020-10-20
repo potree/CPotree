@@ -160,6 +160,11 @@ struct Attributes {
 		}
 	}
 
+	void add(Attribute attribute) {
+		this->list.push_back(attribute);
+		this->bytes += attribute.size;
+	}
+
 	int getOffset(string name) {
 		int offset = 0;
 
