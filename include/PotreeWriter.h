@@ -34,76 +34,6 @@ using std::lock_guard;
 using std::ofstream;
 
 
-//vector<function<void(int64_t, uint8_t*)>> createAttributeHandlers(shared_ptr<ofstream> stream, Attributes& attributes) {
-//
-//	vector<function<void(int64_t, uint8_t*)>> handlers;
-//
-//	{ // STANDARD LAS ATTRIBUTES
-//
-//		unordered_map<string, function<void(int64_t, uint8_t*)>> mapping;
-//
-//		{ // POSITION
-//			int offset = attributes.getOffset("position");
-//			auto handler = [stream, offset, attributes](int64_t index, uint8_t* data) {
-//
-//				int32_t X, Y, Z;
-//
-//				memcpy(&X, data + index * attributes.bytes + offset + 0, 4);
-//				memcpy(&Y, data + index * attributes.bytes + offset + 4, 4);
-//				memcpy(&Z, data + index * attributes.bytes + offset + 8, 4);
-//
-//				double x = double(X) * attributes.posScale.x + attributes.posOffset.x;
-//				double y = double(Y) * attributes.posScale.y + attributes.posOffset.y;
-//				double z = double(Z) * attributes.posScale.z + attributes.posOffset.z;
-//
-//				*stream << x << " " << y << " " << z;
-//			};
-//
-//			mapping["position"] = handler;
-//		}
-//
-//		{ // RGB
-//			int offset = attributes.getOffset("rgb");
-//			auto handler = [stream, offset, attributes](int64_t index, uint8_t* data) {
-//				uint16_t rgb[3];
-//
-//				memcpy(&rgb, data + index * attributes.bytes + offset, 6);
-//
-//				*stream << " " << rgb[0] << " " << rgb[1] << " " << rgb[2];
-//			};
-//
-//			mapping["rgb"] = handler;
-//		}
-//
-//		{ // INTENSITY
-//			int offset = attributes.getOffset("intensity");
-//			auto handler = [stream, offset, attributes](int64_t index, uint8_t* data) {
-//				uint16_t intensity;
-//				memcpy(&intensity, data + index * attributes.bytes + offset, 2);
-//
-//				*stream << " " << intensity;
-//			};
-//
-//			mapping["intensity"] = handler;
-//		}
-//
-//
-//		*stream << "#";
-//		for (auto& attribute : attributes.list) {
-//
-//			if (mapping.find(attribute.name) != mapping.end()) {
-//				*stream << attribute.name << " ";
-//				handlers.push_back(mapping[attribute.name]);
-//			}
-//		}
-//		*stream << endl;
-//
-//	}
-//
-//	return handlers;
-//}
-
-
 struct PotreeWriter : public Writer {
 
 	string path;
@@ -174,12 +104,10 @@ struct PotreeWriter : public Writer {
 
 	void close() {
 
-		double scale = 0.001;
-
 		ofstream stream;
 		stream.open(path, ios::binary);
 		
-		string header = createHeader(scale);
+		string header = createHeader();
 
 		int headerSize = header.size();
 		stream.write(reinterpret_cast<const char*>(&headerSize), 4);
@@ -190,6 +118,48 @@ struct PotreeWriter : public Writer {
 		for (auto& attribute : outputAttributes.list) {
 			for (auto& task : backlog) {
 				auto points = task.points;
+
+				// reencode position with new scale and offset
+				if(attribute.name == "position"){ 
+					dvec3 scale = outputAttributes.posScale;
+					dvec3 offset = aabb.min;
+
+					auto buffer = points->attributeBuffersMap["position"];
+					auto i32 = buffer->data_i32;
+
+					for (int64_t i = 0; i < points->numPoints; i++) {
+						dvec3 xyz = points->getPosition(i);
+
+						i32[3 * i + 0] = (xyz.x - offset.x) / scale.x;
+						i32[3 * i + 1] = (xyz.y - offset.y) / scale.y;
+						i32[3 * i + 2] = (xyz.z - offset.z) / scale.z;
+					}
+				}
+
+				// reencode position_projected_profile with new scale and offset
+				if(attribute.name == "position_projected_profile"){ 
+					dvec3 scale = outputAttributes.posScale;
+					dvec3 offset = aabb.min;
+
+					auto buffer = points->attributeBuffersMap["position_projected_profile"];
+					auto i32 = buffer->data_i32;
+
+					auto scaleIn = points->attributes.posScale;
+					auto scaleOut = outputAttributes.posScale;
+
+					for (int64_t i = 0; i < points->numPoints; i++) {
+
+						auto X = i32[2 * i + 0];
+						auto Z = i32[2 * i + 1];
+
+						int32_t X1 = (X * scaleIn[0]) / scaleOut[0];
+						int32_t Z1 = (Z * scaleIn[2]) / scaleOut[2];
+
+						i32[2 * i + 0] = X1;
+						i32[2 * i + 1] = Z1;
+					}
+				}
+
 
 				bool hasAttribute = points->attributes.get(attribute.name);
 				if (hasAttribute) {
@@ -207,118 +177,11 @@ struct PotreeWriter : public Writer {
 			}
 		}
 
-		//for (auto& task : backlog) {
-		//	for (int64_t i = 0; i < task.numAccepted; i++) {
-
-		//		auto points = task.points;
-		//		auto inputAttributes = points->attributes;
-		//		auto handlers = createAttributeHandlers(inputAttributes, outputAttributes, points, stream);
-
-		//		for (auto& handler : handlers) {
-		//			handler(i);
-		//		}
-
-		//	}
-		//}
-
-
 		stream.close();
 	}
 
-	//vector<function<void(int64_t)>> createAttributeHandlers(Attributes& sourceAttributes, Attributes targetAttributes, shared_ptr<Points> points, ofstream& target) {
 
-	//	vector<function<void(int64_t)>> handlers;
-
-	//	{ // STANDARD LAS ATTRIBUTES
-
-	//		unordered_map<string, function<void(int64_t)>> mapping;
-
-	//		{ // POSITION
-	//			auto attribute = sourceAttributes.get("position");
-	//			auto buff_position = points->attributeBuffersMap["position"];
-	//			auto handler = [sourceAttributes, targetAttributes, buff_position, &target, attribute](int64_t index) {
-
-	//				int32_t X, Y, Z;
-
-	//				memcpy(&X, buff_position->data_u8 + index * attribute->size+ 0, 4);
-	//				memcpy(&Y, buff_position->data_u8 + index * attribute->size+ 4, 4);
-	//				memcpy(&Z, buff_position->data_u8 + index * attribute->size+ 8, 4);
-
-	//				double x = double(X) * sourceAttributes.posScale.x + sourceAttributes.posOffset.x;
-	//				double y = double(Y) * sourceAttributes.posScale.y + sourceAttributes.posOffset.y;
-	//				double z = double(Z) * sourceAttributes.posScale.z + sourceAttributes.posOffset.z;
-
-	//				int32_t targetX = (x - targetAttributes.posOffset.x) / targetAttributes.posScale.x;
-	//				int32_t targetY = (y - targetAttributes.posOffset.y) / targetAttributes.posScale.y;
-	//				int32_t targetZ = (z - targetAttributes.posOffset.z) / targetAttributes.posScale.z;
-
-	//				target.write(reinterpret_cast<const char*>(&targetX), 4);
-	//				target.write(reinterpret_cast<const char*>(&targetY), 4);
-	//				target.write(reinterpret_cast<const char*>(&targetZ), 4);
-	//			};
-
-	//			mapping["position"] = handler;
-	//		}
-
-	//		{ // RGB
-	//			auto attribute = sourceAttributes.get("rgb");
-	//			auto buff_rgb = points->attributeBuffersMap["rgb"];
-	//			auto handler = [sourceAttributes, targetAttributes, buff_rgb, &target, attribute](int64_t index) {
-	//				uint16_t rgb[3];
-
-	//				memcpy(&rgb, buff_rgb->data_u8 + index * attribute->size, attribute->size);
-
-	//				target.write(reinterpret_cast<const char*>(&rgb), attribute->size);
-	//			};
-
-	//			mapping["rgb"] = handler;
-	//		}
-
-	//		{ // INTENSITY
-	//			auto attribute = sourceAttributes.get("intensity");
-	//			auto buff_intensity = points->attributeBuffersMap["intensity"];
-	//			auto handler = [sourceAttributes, targetAttributes, buff_intensity, &target, attribute](int64_t index) {
-	//				uint16_t intensity;
-
-	//				memcpy(&intensity, buff_intensity->data_u8 + index * attribute->size, attribute->size);
-
-	//				target.write(reinterpret_cast<const char*>(&intensity), 2);
-	//			};
-
-	//			mapping["intensity"] = handler;
-	//		}
-
-
-	//		for (auto& attribute : outputAttributes.list) {
-
-	//			bool hasSpecificMapping = mapping.find(attribute.name) != mapping.end();
-	//			bool hasMatchingSourceAndTarget = points->attributeBuffersMap.find(attribute.name) != points->attributeBuffersMap.end();
-
-	//			if (hasSpecificMapping) {
-	//				handlers.push_back(mapping[attribute.name]);
-	//			} else if(hasMatchingSourceAndTarget){
-
-	//				auto source = points->attributeBuffersMap[attribute.name];
-
-	//				auto handler = [&target, &attribute, source](int64_t index) {
-
-	//					const char* ptr = reinterpret_cast<const char*>(source->data_u8 + index * attribute.size);
-	//					target.write(ptr, attribute.size);
-	//				};
-
-	//				handlers.push_back(handler);
-	//			} else {
-	//				// ignore attribute
-	//			}
-	//		}
-
-	//	}
-
-	//	return handlers;
-	//}
-
-
-	string createHeader(double scale) {
+	string createHeader() {
 
 		double durationMS = now() * 1000.0;
 
@@ -364,15 +227,6 @@ struct PotreeWriter : public Writer {
 			header += t(2) + s("max") + ": [" + d(aabb.max.x) + ", " + d(aabb.max.y) + ", " + d(aabb.max.z) + "],\n";
 			header += t(1) + "},\n";
 
-			//header += "\t\"boundingBox\": {\n";
-			//header += "\t\t\"lx\": " + to_inf_safe_json(aabb.min.x) + ",\n";
-			//header += "\t\t\"ly\": " + to_inf_safe_json(aabb.min.y) + ",\n";
-			//header += "\t\t\"lz\": " + to_inf_safe_json(aabb.min.z) + ",\n";
-			//header += "\t\t\"ux\": " + to_inf_safe_json(aabb.max.x) + ",\n";
-			//header += "\t\t\"uy\": " + to_inf_safe_json(aabb.max.y) + ",\n";
-			//header += "\t\t\"uz\": " + to_inf_safe_json(aabb.max.z) + "\n";
-			//header += "\t},\n";
-
 			header += "\t\"attributes\": [\n";
 
 			for (int i = 0; i < outputAttributes.list.size(); i++) {
@@ -400,7 +254,18 @@ struct PotreeWriter : public Writer {
 			header += "\t],\n";
 
 			header += "\t\"bytesPerPoint\": " + to_string(outputAttributes.bytes) + ",\n";
-			header += "\t\"scale\": " + to_string(scale) + "\n";
+			//header += "\t\"scale\": " + to_string(scale) + "\n";
+			header += t(1) + s("scale") + ": [ "
+				+ d(outputAttributes.posScale.x) + ", "
+				+ d(outputAttributes.posScale.y) + ", "
+				+ d(outputAttributes.posScale.z) + "],\n";
+			//header += t(1) + s("offset") + ": [ " 
+			//	+ d(outputAttributes.posOffset.x) + ", "
+			//	+ d(outputAttributes.posOffset.y) + ", "
+			//	+ d(outputAttributes.posOffset.z) + "],\n";
+			//dvec3 scale = outputAttributes.posScale;
+			//dvec3 offset = aabb.min;
+			
 
 			header += "}\n";
 		}

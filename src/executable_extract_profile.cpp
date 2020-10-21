@@ -7,6 +7,9 @@
 #include <mutex>
 #include <regex>
 #include <memory>
+#include <set>
+
+#include "json/json.hpp"
 
 #include "pmath.h"
 #include "unsuck/unsuck.hpp"
@@ -21,57 +24,120 @@
 #include "PotreeWriter.h"
 #include "Attributes.h"
 
+using std::set;
 using std::string;
 using std::function;
 using std::shared_ptr;
+
+using json = nlohmann::json;
 
 struct AcceptedItem {
 	Node* node;
 	shared_ptr<Buffer> data;
 };
 
-Attributes computeAttributes(Arguments& args) {
+Attributes computeAttributes(Arguments& args, vector<string> sources) {
 
 	vector<Attribute> list;
+	unordered_map<string, Attribute> map;
 
-	Attribute position("position", 12, 3, 4, AttributeType::INT32);
-	Attribute rgb("rgb", 6, 3, 2, AttributeType::UINT16);
-	Attribute intensity("intensity", 2, 1, 2, AttributeType::UINT16);
-	Attribute position_projected_profile("position_projected_profile", 8, 2, 4, AttributeType::INT32);
+	for (string path : sources) {
+		string metadataPath = path + "/metadata.json";
+		string txtMetadata = readTextFile(metadataPath);
+		json jsMetadata = json::parse(txtMetadata);
 
-	unordered_map<string, Attribute> mapping = {
-		{"position", position},
-		{"rgb", rgb},
-		{"rgba", rgb},
-		{"intensity", intensity},
-	};
+		auto jsAttributes = jsMetadata["attributes"];
+		for (auto jsAttribute : jsAttributes) {
 
-	if (args.has("output-attributes")) {
+			Attribute attribute;
 
-		list.push_back(position);
+			attribute.name = jsAttribute["name"];
+			attribute.size = jsAttribute["size"];
+			attribute.numElements = jsAttribute["numElements"];
+			attribute.elementSize = jsAttribute["elementSize"];
+			attribute.type = typenameToType(jsAttribute["type"]);
+			
+			attribute.min.x = jsAttribute["min"][0];
+			attribute.max.x = jsAttribute["max"][0];
+			
+			if (jsAttribute["min"].size() > 1) {
+				attribute.min.y = jsAttribute["min"][1];
+				attribute.max.y = jsAttribute["max"][1];
+			}
 
-		vector<string> attributeNames = args.get("output-attributes").as<vector<string>>();
+			if (jsAttribute["min"].size() > 2) {
+				attribute.min.z = jsAttribute["min"][2];
+				attribute.max.z = jsAttribute["max"][2];
+			}
 
-		for (string attributeName : attributeNames) {
-
-			if (mapping.find(attributeName) != mapping.end()) {
-				list.push_back(mapping[attributeName]);
-			} else {
-				cout << "WARNING: could not find a handler for attribute '" << attributeName << "'. The attribute will be ignored.";
+			bool alreadyAdded = map.find(attribute.name) != map.end();
+			if (!alreadyAdded) {
+				list.push_back(attribute);
+				map[attribute.name] = attribute;
 			}
 
 		}
 
-	} else {
-
-		list.push_back(position);
-		list.push_back(rgb);
-		list.push_back(intensity);
 	}
 
-	list.push_back(position_projected_profile);
 
-	Attributes attributes(list);
+	//vector<Attribute> list;
+
+	//Attribute position("position", 12, 3, 4, AttributeType::INT32);
+	//Attribute rgb("rgb", 6, 3, 2, AttributeType::UINT16);
+	//Attribute intensity("intensity", 2, 1, 2, AttributeType::UINT16);
+	//Attribute position_projected_profile("position_projected_profile", 8, 2, 4, AttributeType::INT32);
+
+	//unordered_map<string, Attribute> mapping = {
+	//	{"position", position},
+	//	{"rgb", rgb},
+	//	{"rgba", rgb},
+	//	{"intensity", intensity},
+	//};
+
+	vector<Attribute> chosen;
+
+	if (args.has("output-attributes")) {
+
+
+		vector<string> attributeNames = args.get("output-attributes").as<vector<string>>();
+
+		if (attributeNames[0] != "position") {
+			attributeNames.insert(attributeNames.begin(), "position");
+		}
+
+		for (string attributeName : attributeNames) {
+			if (map.find(attributeName) != map.end()) {
+				chosen.push_back(map[attributeName]);
+			}
+		}
+
+
+
+		//list.push_back(position);
+
+		//vector<string> attributeNames = args.get("output-attributes").as<vector<string>>();
+
+		//for (string attributeName : attributeNames) {
+
+		//	if (mapping.find(attributeName) != mapping.end()) {
+		//		list.push_back(mapping[attributeName]);
+		//	} else {
+		//		cout << "WARNING: could not find a handler for attribute '" << attributeName << "'. The attribute will be ignored.";
+		//	}
+
+		//}
+
+	} else {
+		chosen = list;
+	}
+
+	if (map.find("position_projected_profile") == map.end()) {
+		Attribute position_projected_profile("position_projected_profile", 8, 2, 4, AttributeType::INT32);
+		chosen.push_back(position_projected_profile);
+	}
+
+	Attributes attributes(chosen);
 
 	return attributes;
 }
@@ -173,7 +239,8 @@ int main(int argc, char** argv) {
 	sources = curateSources(sources);
 	auto stats = computeStats(sources);
 
-	Attributes outputAttributes = computeAttributes(args);
+	Attributes outputAttributes = computeAttributes(args, sources);
+	outputAttributes.posScale = {0.001, 0.001, 0.001};
 
 	auto min = stats.aabb.min;
 	auto max = stats.aabb.max;
