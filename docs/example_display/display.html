@@ -20,9 +20,13 @@ td{
 
 <pre>
 Model: aerial_lidar2019_2524_1197_laz14_dip.laz (courtesy of SITN)
-Converted with PotreeConverter 2.0.2
+
+Model converted with:
+./PotreeConverter.exe D:/pointclouds/sitn_dip.laz" -o D:/temp/cpotree/sitn_dip_2.0
+
+
 Profile extracted from octree with:
-./extract_profile.exe "D:/temp/cpotree/sitn_dip_2.0" -o "D:/temp/cpotree/cpotree_2.0.potree" --coordinates "{2524740.130, 1197228.920, 1241.990}, {2524224.210, 1197350.780, 1213.580}, {2524150.880, 1197871.160, 1120.780}, {2524831.190, 1197878.490, 1135.780}" --width 1.0, --min-level 0  --max-level 5 
+./extract_profile.exe "D:/temp/cpotree/sitn_dip_2.0" -o "D:/temp/cpotree/cpotree_2.0.potree" --coordinates "{2524740.130, 1197228.920, 1241.990}, {2524224.210, 1197350.780, 1213.580}, {2524150.880, 1197871.160, 1120.780}, {2524831.190, 1197878.490, 1135.780}" --width 1.0 --min-level 0  --max-level 5 
 </pre>
 
 <canvas id="canvas" width="800" height="600"></canvas>
@@ -84,6 +88,8 @@ function makeTyped(buffer, type){
 }
 
 function readAttributeData(metadata, metadataSize, numPoints, fullBuffer, attributes){
+	let tStart = performance.now();
+
 	let attributeOffsets = computeAttributeOffsets(4 + metadataSize, attributes, numPoints);
 	let buffers = {};
 
@@ -135,6 +141,9 @@ function readAttributeData(metadata, metadataSize, numPoints, fullBuffer, attrib
 
 		buffers[attribute.name] = typedArray;
 	}
+
+	let duration = performance.now() - tStart;
+	console.log(`readAttributeData: ${parseInt(duration)}ms`);
 
 	return buffers;
 }
