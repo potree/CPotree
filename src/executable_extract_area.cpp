@@ -139,7 +139,7 @@ int main(int argc, char** argv) {
 	if (args.has("get-candidates")) {
 		int64_t numCandidates = 0;
 		for (string path : sources) {
-			numCandidates += getNumCandidates(path, area);
+			numCandidates += getNumCandidates(path, area, minLevel, maxLevel);
 		};
 
 		cout << formatNumber(numCandidates) << endl;

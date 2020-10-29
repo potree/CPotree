@@ -21,4 +21,6 @@
 	"editor.mouseWheelZoom": true,
 	"editor.renderWhitespace": "all",
 	"workbench.tree.indent": 30,
+	"cmake.configureOnOpen": true,
+	"C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
 }

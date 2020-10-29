@@ -104,14 +104,22 @@ struct PotreeWriter : public Writer {
 
 	void close() {
 
-		ofstream stream;
-		stream.open(path, ios::binary);
+		ostream* stream = nullptr;
+
+		if (path == "stdout") {
+			stream = &cout;
+		} else {
+			ofstream* ofs = new ofstream();
+			ofs->open(path, ios::binary);
+
+			stream = ofs;
+		}
 		
 		string header = createHeader();
 
 		int headerSize = header.size();
-		stream.write(reinterpret_cast<const char*>(&headerSize), 4);
-		stream.write(header.c_str(), headerSize);
+		stream->write(reinterpret_cast<const char*>(&headerSize), 4);
+		stream->write(header.c_str(), headerSize);
 
 		outputAttributes.posOffset = aabb.min;
 
@@ -168,16 +176,22 @@ struct PotreeWriter : public Writer {
 					if (buffer->size > points->numPoints* attribute.size) {
 						int debug = 10;
 					}
-					stream.write(buffer->data_char, buffer->size);
+					stream->write(buffer->data_char, buffer->size);
 				} else {
 					Buffer buffer(attribute.size * points->numPoints);
-					stream.write(buffer.data_char, buffer.size);
+					stream->write(buffer.data_char, buffer.size);
 				}
 				
 			}
 		}
 
-		stream.close();
+		if (path == "stdout") {
+			// dont do anything
+		} else {
+			ofstream* ofs = (ofstream*)stream;
+			ofs->close();
+		}
+
 	}
 
 

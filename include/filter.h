@@ -371,7 +371,7 @@ bool intersects(dvec3 point, Area& area) {
 	return false;
 }
 
-int64_t getNumCandidates(string path, Area area) {
+int64_t getNumCandidates(string path, Area area, int minLevel, int maxLevel) {
 	string metadataPath = path + "/metadata.json";
 	string octreePath = path + "/octree.bin";
 
@@ -384,6 +384,10 @@ int64_t getNumCandidates(string path, Area area) {
 
 	vector<Node*> clippedNodes;
 	for (auto node : hierarchy.nodes) {
+
+		if (node->level() < minLevel || node->level() > maxLevel) {
+			continue;
+		}
 
 		if (intersects(node, area)) {
 			numCandidates += node->numPoints;

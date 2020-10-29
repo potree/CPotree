@@ -22,6 +22,8 @@
 				"D:/temp/cpotree/sitn_dip_2.0",
 				
 
+
+				// "-o", "stdout",
 				"-o", "D:/temp/cpotree/cpotree_2.0.potree",
 				// "-o", "D:/temp/cpotree/cpotree_2.0.laz",
 
@@ -51,7 +53,9 @@
 
 				// "--output-attributes", "rgb", "intensity",
 				"--min-level", "0", 
-				"--max-level", "5", 
+				"--max-level", "2", 
+
+				// "--get-candidates",
 
 			],
 			"stopAtEntry": false,
