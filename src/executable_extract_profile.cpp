@@ -249,7 +249,7 @@ int main(int argc, char** argv) {
 
 		int64_t numCandidates = 0;
 		for (string path : sources) {
-			numCandidates += getNumCandidates(path, area);
+			numCandidates += getNumCandidates(path, area, minLevel, maxLevel);
 		};
 
 		cout << formatNumber(numCandidates) << endl;
@@ -266,8 +266,7 @@ int main(int argc, char** argv) {
 		} else if (iEndsWith(targetpath, "potree")) {
 			writer = make_shared<PotreeWriter>(targetpath, scale, offset, outputAttributes);
 		} else if (targetpath == "stdout") {
-			cout << "TODO: " << __FILE__ << ":" << __LINE__ << endl;
-			//writer = make_shared<PotreeWriter>(targetpath, scale, offset, outputAttributes);
+			writer = make_shared<PotreeWriter>("stdout", scale, offset, outputAttributes);
 		} else {
 			cout << "ERROR: unkown output format, extension not known: " << targetpath << endl;
 		}
@@ -384,7 +383,7 @@ int main(int argc, char** argv) {
 	}
 
 
-	printElapsedTime("duration", tStart);
+	//printElapsedTime("duration", tStart);
 
 
 	return 0;
