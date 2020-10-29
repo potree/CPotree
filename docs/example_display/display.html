@@ -1,0 +1,246 @@
+<html>
+<head>
+
+<style>
+
+canvas{
+	border: 1px solid black;
+	margin: 5px;
+}
+
+td{
+	padding: 2px 15px;
+}
+
+</style>
+
+</head>
+<body>
+
+
+<pre>
+Model: aerial_lidar2019_2524_1197_laz14_dip.laz (courtesy of SITN)
+
+Model converted with:
+./PotreeConverter.exe D:/pointclouds/sitn_dip.laz" -o D:/temp/cpotree/sitn_dip_2.0
+
+
+Profile extracted from octree with:
+./extract_profile.exe "D:/temp/cpotree/sitn_dip_2.0" -o "D:/temp/cpotree/cpotree_2.0.potree" --coordinates "{2524740.130, 1197228.920, 1241.990}, {2524224.210, 1197350.780, 1213.580}, {2524150.880, 1197871.160, 1120.780}, {2524831.190, 1197878.490, 1135.780}" --width 1.0 --min-level 0  --max-level 5 
+</pre>
+
+<canvas id="canvas" width="800" height="600"></canvas>
+
+<script type="module">
+
+import JSON5 from "./libs/json5/json5.mjs";
+
+let canvas = document.getElementById("canvas");
+let context = canvas.getContext("2d");
+
+let [width, height] = [800, 600];
+
+function drawPoint(x, y, r, rgb){
+	let rh = r / 2;
+
+	context.fillStyle = `rgb(${rgb.join(", ")})`;
+
+	context.fillRect(x - rh, height - y - rh, rh, rh);
+};
+
+function computeAttributeOffsets(baseOffset, attributes, numPoints){
+
+	let offset = baseOffset;
+	let offsets = {};
+
+	for(let attribute of attributes){
+		offsets[attribute.name] = offset;
+		offset += attribute.size * numPoints;
+	}
+
+	return offsets;
+}
+
+function makeTyped(buffer, type){
+	if(type == "int8"){
+		return new Int8Array(buffer);
+	}else if(type == "int16"){
+		return new Int16Array(buffer);
+	}else if(type == "int32"){
+		return new Int32Array(buffer);
+	}else if(type == "int64"){
+		console.error(`unsupported type: ${type}.`);
+	}else if(type == "uint8"){
+		return new Uint8Array(buffer);
+	}else if(type == "uint16"){
+		return new Uint16Array(buffer);
+	}else if(type == "uint32"){
+		return new Uint32Array(buffer);
+	}else if(type == "uint64"){
+		console.error(`unsupported type: ${type}.`);
+	}else if(type == "float"){
+		return new Float32Array(buffer);
+	}else if(type == "double"){
+		return new Float64Array(buffer);
+	}else{
+		console.error(`unkown type: ${type}`);
+	}
+}
+
+function readAttributeData(metadata, metadataSize, numPoints, fullBuffer, attributes){
+	let tStart = performance.now();
+
+	let attributeOffsets = computeAttributeOffsets(4 + metadataSize, attributes, numPoints);
+	let buffers = {};
+
+	for(let attribute of attributes){
+		let firstByte = attributeOffsets[attribute.name];
+		let byteSize = attribute.size * numPoints;
+		let buffer = fullBuffer.slice(firstByte, firstByte + byteSize);
+		let typedArray = makeTyped(buffer, attribute.type);
+
+		if(attribute.name === "position"){
+			let posArray = new Float64Array(3 * numPoints);
+
+			let scale = metadata.scale;
+			let offset = metadata.boundingBox.min;
+			for(let i = 0; i < numPoints; i++){
+				let X = typedArray[3 * i + 0];
+				let Y = typedArray[3 * i + 1];
+				let Z = typedArray[3 * i + 2];
+
+				let x = X * scale[0] + offset[0];
+				let y = Y * scale[1] + offset[1];
+				let z = Z * scale[2] + offset[2];
+
+				posArray[3 * i + 0] = x;
+				posArray[3 * i + 1] = y;
+				posArray[3 * i + 2] = z;
+			}
+
+			typedArray = posArray;
+			
+		}else if(attribute.name === "position_projected_profile"){
+			let posArray = new Float64Array(2 * numPoints);
+
+			let scale = metadata.scale;
+			
+			for(let i = 0; i < numPoints; i++){
+				let MILEAGE = typedArray[2 * i + 0];
+				let ELEVATION = typedArray[2 * i + 1];
+
+				let mileage = MILEAGE * scale[0];
+				let elevation = ELEVATION * scale[2];
+
+				posArray[2 * i + 0] = mileage;
+				posArray[2 * i + 1] = elevation;
+			}
+
+			typedArray = posArray;
+		}
+
+		buffers[attribute.name] = typedArray;
+	}
+
+	let duration = performance.now() - tStart;
+	console.log(`readAttributeData: ${parseInt(duration)}ms`);
+
+	return buffers;
+}
+
+async function run(){
+
+	// setup page
+	context.fillStyle = `rgb(0, 0, 0)`;
+	context.fillRect(0, 0, width, height);
+
+	// load data
+	let response = await fetch("./cpotree_2.0.potree");
+	let buffer = await response.arrayBuffer();
+	let view = new DataView(buffer);
+	let metadataSize = view.getInt32(0, true);
+	let bufferMetadata = buffer.slice(4, 4 + metadataSize);
+	let dec = new TextDecoder("utf-8");
+	let txtMetadata = dec.decode(bufferMetadata);
+
+	let jsonMetadata = JSON5.parse(txtMetadata);
+	let attributes = jsonMetadata.attributes;
+	let boundingBox = jsonMetadata.boundingBox;
+	let numPoints = jsonMetadata.points;
+	let scale = jsonMetadata.scale;
+	let offset = jsonMetadata.boundingBox.min;
+
+	let buffers = readAttributeData(jsonMetadata, metadataSize, numPoints, buffer, attributes);
+
+	{ // iterate through and draw all the points
+		let pos = buffers["position_projected_profile"];
+		let rgb = buffers["rgb"];
+
+		let normalizeRGB = (v) => v > 255 ? v / 256 : v;
+
+		for(let i = 0; i < numPoints; i++){
+
+			let x = pos[2 * i + 0];
+			let y = pos[2 * i + 1] - boundingBox.min[2];
+
+			let r = normalizeRGB(rgb[3 * i + 0]);
+			let g = normalizeRGB(rgb[3 * i + 1]);
+			let b = normalizeRGB(rgb[3 * i + 2]);
+
+			let circle = drawPoint(x, y, 2, [r, g, b]);
+		}
+	}
+
+
+	{ // print a table containing some of the points and their attributes
+
+		let div = document.createElement("div");
+		div.innerText = `#points: ${numPoints.toLocaleString()}`;
+		document.body.appendChild(div);
+
+		let table = document.createElement("table");
+
+		{ // header containing attribute names
+			let tr = document.createElement("tr");
+			for(let attribute of attributes){
+				let td = document.createElement("th");
+				td.innerText = attribute.name;
+
+				tr.appendChild(td);
+			}
+			table.appendChild(tr);
+		}
+
+
+		for(let i = 0; i < 10; i++){
+
+			let tr = document.createElement("tr");
+			for(let attribute of attributes){
+				let td = document.createElement("td");
+
+				let n = attribute.numElements;
+				let values = buffers[attribute.name].slice(i * n, (i + 1) * n);
+				let txt = values.join(", ");
+
+				td.innerText = txt;
+
+				tr.appendChild(td);
+			}
+			table.appendChild(tr);
+
+		}
+
+		document.body.appendChild(table);
+	}
+
+
+	
+}
+
+run();
+
+
+</script>
+
+</body>
+</html>

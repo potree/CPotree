@@ -1,39 +1,47 @@
+
 #pragma once
 
-#include "StandardIncludes.h"
 
-#include <glm/glm.hpp>
-#include <glm/gtc/constants.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
+#include <glm/glm/glm.hpp>
+#include <glm/glm/gtc/constants.hpp>
+#include <glm/glm/gtc/matrix_transform.hpp>
+#include <glm/glm/gtc/type_ptr.hpp>
 
+#include "unsuck/unsuck.hpp"
 
 using glm::dvec2;
 using glm::dvec3;
 using glm::dvec4;
 using glm::dmat4;
 
-static const double infinity = numeric_limits<double>::infinity();
+dvec3 projectPoint(dvec3 point, dvec3 normal) {
 
-struct AABB{
-	dvec3 min = {infinity, infinity, infinity};
-	dvec3 max = {-infinity, -infinity, -infinity};
-	
-	AABB(){
-	
+	//dvec3 np = point - normal;
+	double d = glm::dot(point, normal);
+	dvec3 projected = point - normal * d;
+
+	return projected;
+}
+
+struct AABB {
+	dvec3 min = { Infinity, Infinity, Infinity };
+	dvec3 max = { -Infinity, -Infinity, -Infinity };
+
+	AABB() {
+
 	}
 
-	AABB(dvec3 min, dvec3 max){
+	AABB(dvec3 min, dvec3 max) {
 		this->min = min;
 		this->max = max;
 	}
 
-	dvec3 size(){
+	dvec3 size() {
 		return max - min;
 	}
 
-	dvec3 center(){
-		return 0.5 * max + 0.5 * min;
+	void expand(dvec3 vec) {
+		this->expand(vec.x, vec.y, vec.z);
 	}
 
 	void expand(double x, double y, double z) {
@@ -45,8 +53,13 @@ struct AABB{
 		this->max.z = std::max(z, this->max.z);
 	}
 
-	vector<dvec3> vertices(){
-		
+	void expand(AABB b) {
+		this->expand(b.min.x, b.min.y, b.min.z);
+		this->expand(b.max.x, b.max.y, b.max.z);
+	}
+
+	vector<dvec3> vertices() {
+
 		vector<dvec3> v = {
 			{min.x, min.y, min.z},
 			{min.x, min.y, max.z},
@@ -61,43 +74,42 @@ struct AABB{
 		return v;
 	}
 
-	string toString(){
-		string msg = "{{" + to_string(min.x) + ", " + to_string(min.y) + ", " + to_string(min.z) + "}, "
-			+ "{" + to_string(max.x) + ", " + to_string(max.y) + ", " + to_string(max.z) + "}}";
-
-		return msg;
+	dvec3 center() {
+		return (min + max) / 2.0;
 	}
 
-	bool intersects(AABB box){
-		
-		// box test from three.js, src/math/Box3.js
 
-		if ( box.max.x < this->min.x || box.min.x > this->max.x ||
-				 box.max.y < this->min.y || box.min.y > this->max.y ||
-				 box.max.z < this->min.z || box.min.z > this->max.z ) {
-
-			return false;
-
-		}
-
-		return true;
-	}
-
-	bool inside(dvec3 &point){
-		if(point.x < min.x || point.x > max.x){
-			return false;
-		}
-	
-		if(point.y < min.y || point.y > max.y){
-			return false;
-		}
-
-		return true;
-	}
 };
 
-struct OBB{
+AABB childAABB(AABB& aabb, int& index) {
 
+	dvec3 min = aabb.min;
+	dvec3 max = aabb.max;
+
+	auto size = aabb.size();
+
+	if ((index & 0b0001) > 0) {
+		min.z += size.z / 2;
+	} else {
+		max.z -= size.z / 2;
+	}
+
+	if ((index & 0b0010) > 0) {
+		min.y += size.y / 2;
+	} else {
+		max.y -= size.y / 2;
+	}
+
+	if ((index & 0b0100) > 0) {
+		min.x += size.x / 2;
+	} else {
+		max.x -= size.x / 2;
+	}
+
+	return { min, max };
+}
+
+struct OrientedBox {
 	dmat4 box;
 	dmat4 boxInverse;
 	vector<dvec3> vertices;
@@ -105,11 +117,101 @@ struct OBB{
 	vector<vector<dvec3>> projections;
 	vector<dvec2> projectedIntervalls;
 
-	OBB(dmat4 box);
 
-	bool intersects(AABB &aabb);
+	OrientedBox(dmat4 box) {
+		this->box = box;
+		this->boxInverse = glm::inverse(box);
 
-	bool inside(dvec3 &point){
+		// INITIALIZE IN LOCAL SPACE
+		vertices = {
+			{-0.5, -0.5, -0.5},
+			{-0.5, -0.5, +0.5},
+			{-0.5, +0.5, -0.5},
+			{-0.5, +0.5, +0.5},
+			{+0.5, -0.5, -0.5},
+			{+0.5, -0.5, +0.5},
+			{+0.5, +0.5, -0.5},
+			{+0.5, +0.5, +0.5}
+		};
+
+		axes = {
+			{1, 0, 0},
+			{0, 1, 0},
+			{0, 0, 1}
+		};
+
+		// TRANSFORM TO WORLD SPACE
+		for (int i = 0; i < vertices.size(); i++) {
+			vertices[i] = box * glm::dvec4(vertices[i], 1.0);
+		}
+
+		for (int i = 0; i < axes.size(); i++) {
+			dvec3 tOrigin = box * dvec4(0.0, 0.0, 0.0, 1.0);
+			dvec3 tAxe = box * dvec4(axes[i], 1.0);
+			axes[i] = glm::normalize(tAxe - tOrigin);
+		}
+
+		projections = {
+			{axes[0], axes[1], axes[2]},
+			{axes[1], axes[2], axes[0]},
+			{axes[2], axes[0], axes[1]},
+			{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}},
+			{{0, 1, 0}, {0, 0, 1}, {1, 0, 0}},
+			{{0, 0, 1}, {1, 0, 0}, {0, 1, 0}}
+		};
+
+		for (int i = 0; i < projections.size(); i++) {
+
+			dvec2 intervall = { Infinity, -Infinity };
+
+			for (auto& vertex : vertices) {
+				auto& proj = projections[i];
+				auto pr = projectPoint(projectPoint(vertex, proj[0]), proj[1]);
+				double pi = glm::dot(pr, proj[2]);
+
+				intervall[0] = std::min(intervall[0], pi);
+				intervall[1] = std::max(intervall[1], pi);
+			}
+
+			projectedIntervalls.push_back(intervall);
+		}
+
+	}
+
+	bool intersects(AABB& aabb) {
+		vector<dvec2> projectedIntervallsAABB;
+
+		for (int i = 0; i < projections.size(); i++) {
+
+			dvec2 intervall = { Infinity, -Infinity };
+
+			for (auto& vertex : aabb.vertices()) {
+				auto& proj = projections[i];
+				auto pr = projectPoint(projectPoint(vertex, proj[0]), proj[1]);
+				double pi = glm::dot(pr, proj[2]);
+
+				intervall[0] = std::min(intervall[0], pi);
+				intervall[1] = std::max(intervall[1], pi);
+			}
+
+			projectedIntervallsAABB.push_back(intervall);
+		}
+
+		for (int i = 0; i < projectedIntervalls.size(); i++) {
+			auto piOBB = projectedIntervalls[i];
+			auto piAABB = projectedIntervallsAABB[i];
+
+			if ((piAABB[1] < piOBB[0]) || (piAABB[0] > piOBB[1])) {
+				// found a gap at one of the projections => no intersection
+				return false;
+			}
+
+		}
+
+		return true;
+	}
+
+	bool inside(dvec3& point) {
 		auto p = boxInverse * dvec4(point, 1);
 
 		bool inX = -0.5 <= p.x && p.x <= 0.5;
@@ -118,11 +220,10 @@ struct OBB{
 
 		return inX && inY && inZ;
 	}
+
+
 };
 
-AABB childAABB(AABB &aabb, int &index);
-
-dvec3 project(dvec3 point, dvec3 normal);
-
-
-
+string toString(dvec3 value) {
+	return formatNumber(value.x, 3) + ", " + formatNumber(value.y, 3) + ", " + formatNumber(value.z, 3);
+}
