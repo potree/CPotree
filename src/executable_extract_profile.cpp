@@ -21,7 +21,8 @@
 #include "PotreeLoader.h"
 #include "LasWriter.h"
 #include "CsvWriter.h"
-#include "PotreeWriter.h"
+#include "PotreeWriter_v1.h"
+#include "PotreeWriter_v2.h"
 #include "Attributes.h"
 
 using std::set;
@@ -264,9 +265,11 @@ int main(int argc, char** argv) {
 		} else if (iEndsWith(targetpath, "csv")) {
 			writer = make_shared<CsvWriter>(targetpath, outputAttributes);
 		} else if (iEndsWith(targetpath, "potree")) {
-			writer = make_shared<PotreeWriter>(targetpath, scale, offset, outputAttributes);
+			writer = make_shared<PotreeWriter_v1>(targetpath, scale, offset, outputAttributes);
+		} else if (iEndsWith(targetpath, "potree_v2")) {
+			writer = make_shared<PotreeWriter_v2>(targetpath, scale, offset, outputAttributes);
 		} else if (targetpath == "stdout") {
-			writer = make_shared<PotreeWriter>("stdout", scale, offset, outputAttributes);
+			writer = make_shared<PotreeWriter_v1>("stdout", scale, offset, outputAttributes);
 		} else {
 			cout << "ERROR: unkown output format, extension not known: " << targetpath << endl;
 		}

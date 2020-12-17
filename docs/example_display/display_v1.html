@@ -1,0 +1,309 @@
+<html>
+<head>
+
+<style>
+
+canvas{
+	border: 1px solid black;
+	margin: 5px;
+}
+
+td{
+	padding: 2px 15px;
+}
+
+</style>
+
+</head>
+<body>
+
+
+<pre>
+Model: eclepens.laz (courtesy of Pix4D)
+
+Model converted with: PotreeConverter 1.6
+
+Profile extracted from octree with:
+./PotreeElevationProfile.exe "D:/temp/cpotree/eclepens_1.6/cloud.js" --coordinates "{-265.573, -190.931, 77.517},{127.204, 182.649, 87.035},{244.797, -373.526, -44.827}," --width 2.0123 --min-level 0 --max-level 2 --stdout >> D:/temp/cpotree/cpotree_1.6.potree
+</pre>
+
+<canvas id="canvas" width="800" height="600"></canvas>
+
+<script type="module">
+
+import JSON5 from "./libs/json5/json5.mjs";
+
+let canvas = document.getElementById("canvas");
+let context = canvas.getContext("2d");
+
+let [width, height] = [800, 600];
+
+function drawPoint(x, y, r, rgb){
+	let rh = r / 2;
+
+	context.fillStyle = `rgb(${rgb.join(", ")})`;
+
+	context.fillRect(x - rh, height - y - rh, rh, rh);
+};
+
+function computeAttributeOffsets(baseOffset, attributes, numPoints){
+
+	let offset = baseOffset;
+	let offsets = {};
+
+	for(let attribute of attributes){
+		offsets[attribute.name] = offset;
+		offset += attribute.size * numPoints;
+	}
+
+	return offsets;
+}
+
+function makeTyped(buffer, type){
+	if(type == "int8"){
+		return new Int8Array(buffer);
+	}else if(type == "int16"){
+		return new Int16Array(buffer);
+	}else if(type == "int32"){
+		return new Int32Array(buffer);
+	}else if(type == "int64"){
+		console.error(`unsupported type: ${type}.`);
+	}else if(type == "uint8"){
+		return new Uint8Array(buffer);
+	}else if(type == "uint16"){
+		return new Uint16Array(buffer);
+	}else if(type == "uint32"){
+		return new Uint32Array(buffer);
+	}else if(type == "uint64"){
+		console.error(`unsupported type: ${type}.`);
+	}else if(type == "float"){
+		return new Float32Array(buffer);
+	}else if(type == "double"){
+		return new Float64Array(buffer);
+	}else{
+		console.error(`unkown type: ${type}`);
+	}
+}
+
+function readAttributeData(metadata, metadataSize, numPoints, fullBuffer, attributes){
+	let tStart = performance.now();
+
+	let pointOffset = 4 + metadataSize;
+	let attributeOffset = 0;
+	let view = new DataView(fullBuffer);
+
+	let scale = metadata.scale;
+	let min = {
+		x: metadata.boundingBox.lx,
+		y: metadata.boundingBox.ly,
+		z: metadata.boundingBox.lz,
+	};
+	let bpp = metadata.bytesPerPoint;
+
+	let buffers = {};
+
+	for(let attribute of attributes){
+
+		if(attribute === "POSITION_CARTESIAN"){
+			
+			let array = new Float64Array(3 * numPoints);
+
+			for(let i = 0; i < numPoints; i++){
+				let X = view.getInt32(pointOffset + i * bpp + attributeOffset + 0, true);
+				let Y = view.getInt32(pointOffset + i * bpp + attributeOffset + 4, true);
+				let Z = view.getInt32(pointOffset + i * bpp + attributeOffset + 8, true);
+
+				let x = (X * scale) + min.x;
+				let y = (Y * scale) + min.y;
+				let z = (Z * scale) + min.z;
+
+				array[3 * i + 0] = x;
+				array[3 * i + 1] = y;
+				array[3 * i + 2] = z;
+			}
+
+			attributeOffset += 12;
+			buffers[attribute] = array;
+
+		}else if(attribute === "RGB"){
+
+			let array = new Uint8Array(3 * numPoints);
+
+			for(let i = 0; i < numPoints; i++){
+				let r = view.getUint8(pointOffset + i * bpp + attributeOffset + 0);
+				let g = view.getUint8(pointOffset + i * bpp + attributeOffset + 1);
+				let b = view.getUint8(pointOffset + i * bpp + attributeOffset + 2);
+
+				array[3 * i + 0] = r;
+				array[3 * i + 1] = g;
+				array[3 * i + 2] = b;
+			}
+
+			attributeOffset += 3;
+			buffers[attribute] = array;
+
+		}else if(attribute === "INTENSITY"){
+
+			let array = new Uint16Array(numPoints);
+
+			for(let i = 0; i < numPoints; i++){
+				let intensity = view.getUint16(pointOffset + i * bpp + attributeOffset, true);
+
+				array[i] = intensity;
+			}
+
+			attributeOffset += 2;
+			buffers[attribute] = array;
+
+		}else if(attribute === "CLASSIFICATION"){
+
+			let array = new Uint8Array(numPoints);
+
+			for(let i = 0; i < numPoints; i++){
+				let classification = view.getUint8(pointOffset + i * bpp + attributeOffset);
+
+				array[i] = classification;
+			}
+
+			attributeOffset += 1;
+			buffers[attribute] = array;
+
+		}else if(attribute === "POSITION_PROJECTED_PROFILE"){
+			let array = new Float64Array(2 * numPoints);
+
+			let scale = metadata.scale;
+			
+			for(let i = 0; i < numPoints; i++){
+				let MILEAGE = view.getInt32(pointOffset + i * bpp + attributeOffset + 0, true);
+				let ELEVATION = view.getInt32(pointOffset + i * bpp + attributeOffset + 4, true);
+
+				let mileage = MILEAGE * scale;
+				let elevation = ELEVATION * scale;
+
+				array[2 * i + 0] = mileage;
+				array[2 * i + 1] = elevation;
+			}
+
+			attributeOffset += 8;
+			buffers[attribute] = array;
+		}else{
+			throw "unkown attribute: " + attribute
+		}
+
+		// pointOffset += metadata.bytesPerPoint;
+		
+	}
+
+	let duration = performance.now() - tStart;
+	console.log(`readAttributeData: ${parseInt(duration)}ms`);
+
+	return buffers;
+}
+
+async function run(){
+
+	// setup page
+	context.fillStyle = `rgb(0, 0, 0)`;
+	context.fillRect(0, 0, width, height);
+
+	// load data
+	let response = await fetch("./cpotree_2.0_v1.potree");
+	//let response = await fetch("./cpotree_1.6.potree");
+	let buffer = await response.arrayBuffer();
+	let view = new DataView(buffer);
+	let metadataSize = view.getInt32(0, true);
+	let bufferMetadata = buffer.slice(4, 4 + metadataSize);
+	let dec = new TextDecoder("utf-8");
+	let txtMetadata = dec.decode(bufferMetadata);
+
+	let jsonMetadata = JSON5.parse(txtMetadata);
+	let attributes = jsonMetadata.pointAttributes;
+	let boundingBox = {
+		min: [jsonMetadata.boundingBox.lx, jsonMetadata.boundingBox.ly, jsonMetadata.boundingBox.lz],
+		max: [jsonMetadata.boundingBox.ux, jsonMetadata.boundingBox.uy, jsonMetadata.boundingBox.uz],
+	}; ;
+	let numPoints = jsonMetadata.points;
+	let scale = jsonMetadata.scale;
+	let offset = jsonMetadata.boundingBox.min;
+
+	let buffers = readAttributeData(jsonMetadata, metadataSize, numPoints, buffer, attributes);
+
+	{ // iterate through and draw all the points
+		let pos = buffers["POSITION_PROJECTED_PROFILE"];
+		let rgb = buffers["RGB"];
+
+		let normalizeRGB = (v) => v > 255 ? v / 256 : v;
+
+		for(let i = 0; i < numPoints; i++){
+
+			let x = pos[2 * i + 0];
+			let y = pos[2 * i + 1] - boundingBox.min[2];
+
+			let r = normalizeRGB(rgb[3 * i + 0]);
+			let g = normalizeRGB(rgb[3 * i + 1]);
+			let b = normalizeRGB(rgb[3 * i + 2]);
+
+			let circle = drawPoint(x, y, 5, [r, g, b]);
+		}
+	}
+
+
+	{ // print a table containing some of the points and their attributes
+
+		let div = document.createElement("div");
+		div.innerText = `#points: ${numPoints.toLocaleString()}`;
+		document.body.appendChild(div);
+
+		let table = document.createElement("table");
+
+		{ // header containing attribute names
+			let tr = document.createElement("tr");
+			for(let attribute of attributes){
+				let td = document.createElement("th");
+				td.innerText = attribute;
+
+				tr.appendChild(td);
+			}
+			table.appendChild(tr);
+		}
+
+
+		for(let i = 0; i < 10; i++){
+
+			let tr = document.createElement("tr");
+			for(let attribute of attributes){
+				let td = document.createElement("td");
+
+				let n = {
+					"POSITION_CARTESIAN": 3,
+					"RGB": 3,
+					"INTENSITY": 1,
+					"CLASSIFICATION": 1,
+					"POSITION_PROJECTED_PROFILE": 2,
+				}[attribute];
+
+				let values = buffers[attribute].slice(i * n, (i + 1) * n);
+				let txt = values.join(", ");
+
+				td.innerText = txt;
+
+				tr.appendChild(td);
+			}
+			table.appendChild(tr);
+
+		}
+
+		document.body.appendChild(table);
+	}
+
+
+	
+}
+
+run();
+
+
+</script>
+
+</body>
+</html>
