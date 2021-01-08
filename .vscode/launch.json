@@ -18,20 +18,25 @@
 			//"program": "${workspaceFolder}/build/Release/CPotree.exe",
 			"args": [
 
-				"D:/temp/cpotree/eclepens_2.0.0",
+				// "D:/temp/cpotree/eclepens_2.0.0",
 				// "D:/temp/cpotree/sitn_dip_2.0",
 				
 				// "-o", "stdout",
-				"-o", "D:/temp/cpotree/cpotree_2.0_v1.potree",
+				// "-o", "D:/temp/cpotree/cpotree_2.0_v1.potree",
 				// "-o", "D:/temp/cpotree/cpotree_2.0.laz",
+
+				"D:/dev/pointclouds/CA13_converted/metadata.json",
+				"-o", "D:/temp/cpotree/ca13.potree",
+				"--coordinates", "{694318.960,3915935.650,5.160},{695224.090,3917784.060,23.280}",
+				"--width", "1.0",
 
 
 				//----------------------------------------------------
 				// extract_profile
 				//----------------------------------------------------
 				
-				"--coordinates", "{-265.573, -190.931}, {127.204, 182.649}, {244.797, -373.526}",
-				"--width", "1.0",
+				// "--coordinates", "{-265.573, -190.931}, {127.204, 182.649}, {244.797, -373.526}",
+				// "--width", "1.0",
  				
 				// "--coordinates", "{2524740.130, 1197228.920, 1241.990}, {2524224.210, 1197350.780, 1213.580}, {2524150.880, 1197871.160, 1120.780}, {2524831.190, 1197878.490, 1135.780}",
 				// "--width", "1.0",
@@ -42,7 +47,7 @@
 
 				// "--output-attributes", "rgb", "intensity",
 				"--min-level", "0", 
-				"--max-level", "2", 
+				"--max-level", "20", 
 				// "--get-candidates",
 
 			],

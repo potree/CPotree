@@ -150,7 +150,7 @@ struct LasWriter : public Writer {
 
 		header.point_data_record_length = 26;
 		//header.number_of_point_records = 111; // must be updated at the end
-		header.extended_number_of_point_records = 111;
+		header.extended_number_of_point_records = 0;
 
 		
 		laszip_BOOL compress = path.ends_with(".laz") || path.ends_with(".LAZ");
@@ -212,7 +212,7 @@ struct LasWriter : public Writer {
 
 		laszip_set_header(laszip_writer, &header);
 
-		laszip_update_inventory(laszip_writer);
+		//laszip_update_inventory(laszip_writer);
 
 		laszip_close_writer(laszip_writer);
 	}
