@@ -119,7 +119,7 @@ struct LasWriter : public Writer {
 
 	mutex mtx_write;
 
-	LasWriter(string path, dvec3 scale, dvec3 offset, Attributes outputAttributes) {
+	LasWriter(string path, dvec3 scale, dvec3 offset, Attributes outputAttributes, bool zip) {
 		this->path = path;
 		this->outputAttributes = outputAttributes;
 
@@ -153,14 +153,18 @@ struct LasWriter : public Writer {
 		header.extended_number_of_point_records = 111;
 
 		
-		laszip_BOOL compress = path.ends_with(".laz") || path.ends_with(".LAZ");
+		laszip_BOOL compress = zip;
 		laszip_BOOL request_writer = 1;
 		laszip_request_compatibility_mode(laszip_writer, request_writer);
 		//laszip_set_chunk_size(laszip_writer, 50'000);
 
 		laszip_set_header(laszip_writer, &header);
 
-		laszip_open_writer(laszip_writer, path.c_str(), compress);
+		if (path != "stdout") {
+			laszip_open_writer(laszip_writer, path.c_str(), compress);
+		} else {
+			laszip_open_writer_stream(laszip_writer, cout, compress, false);
+		}
 
 		laszip_get_point_pointer(laszip_writer, &point);
 	}

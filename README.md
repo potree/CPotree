@@ -22,16 +22,23 @@ cmake ../
 
 # Usage
 
-Extract points with the elevation profile:
+Minimal
 
-    // minimal
     ./extract_profile <input> -o <output> --coordinates "{x0, y1}, {x1, y}, ..." --width <scalar> 
+    ./extract_area <input> -o <output> --area "{tx,rz,ry,0,-rz,ty,rx,0,-ry,-rx,tz,0,dx,dy,dz,1}"
 
-    // Extract points in certain LOD level ranges
+Extract points in certain LOD level ranges
+
     ./extract_profile <input> -o <output> --coordinates "{x0, y1}, {x1, y}, ..." --width <scalar> --min-level <integer> --max-level <integer>
 
+Extract points with different attributes
+
+    ./extract_profile <input> -o <output> --coordinates "{x0, y1}, {x1, y}, ..." --width <scalar> --output-attributes <attributes> --output-format <format>
+
 * __input__: A point cloud generated with PotreeConverter 2.
-* __output__: Can be files ending with *.las, *.laz, *.potree or it can be "stdout". If stdout is specified, a potree format file will be printed directly to the console. 
+* __output__: Can be files ending with *.las, *.laz, *.csv, *.json, *.potree. If omitted, the result will be printed directly to the console. 
+* __format__: LAS, LAZ, CSV, JSON, POTREE (default). If omitted, the files endings will be used.
+* __attributes__: Point attributes like: position, rgb, intensity, classification, ... Default: same as input point cloud
 * __min-level__, __max-level__: Level range including the min and max levels. Can be omitted to process all levels. 
 
 
