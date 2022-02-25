@@ -21,6 +21,7 @@
 #include "PotreeLoader.h"
 #include "LasWriter.h"
 #include "CsvWriter.h"
+#include "JsonWriter.h"
 #include "PotreeWriter.h"
 #include "Attributes.h"
 
@@ -80,25 +81,9 @@ Attributes computeAttributes(Arguments& args, vector<string> sources) {
 
 	}
 
-
-	//vector<Attribute> list;
-
-	//Attribute position("position", 12, 3, 4, AttributeType::INT32);
-	//Attribute rgb("rgb", 6, 3, 2, AttributeType::UINT16);
-	//Attribute intensity("intensity", 2, 1, 2, AttributeType::UINT16);
-	//Attribute position_projected_profile("position_projected_profile", 8, 2, 4, AttributeType::INT32);
-
-	//unordered_map<string, Attribute> mapping = {
-	//	{"position", position},
-	//	{"rgb", rgb},
-	//	{"rgba", rgb},
-	//	{"intensity", intensity},
-	//};
-
 	vector<Attribute> chosen;
 
 	if (args.has("output-attributes")) {
-
 
 		vector<string> attributeNames = args.get("output-attributes").as<vector<string>>();
 
@@ -110,23 +95,10 @@ Attributes computeAttributes(Arguments& args, vector<string> sources) {
 			if (map.find(attributeName) != map.end()) {
 				chosen.push_back(map[attributeName]);
 			}
+//    else {
+//	  	cout << "WARNING: could not find a handler for attribute '" << attributeName << "'. The attribute will be ignored.";
+//    }
 		}
-
-
-
-		//list.push_back(position);
-
-		//vector<string> attributeNames = args.get("output-attributes").as<vector<string>>();
-
-		//for (string attributeName : attributeNames) {
-
-		//	if (mapping.find(attributeName) != mapping.end()) {
-		//		list.push_back(mapping[attributeName]);
-		//	} else {
-		//		cout << "WARNING: could not find a handler for attribute '" << attributeName << "'. The attribute will be ignored.";
-		//	}
-
-		//}
 
 	} else {
 		chosen = list;
@@ -205,14 +177,14 @@ int main(int argc, char** argv) {
 
 	Arguments args(argc, argv);
 
-	args.addArgument("source,i,", "input files");
-	args.addArgument("output,o", "output file or directory, depending on target format");
-	args.addArgument("coordinates", "coordinates of the profile segments. in the form \"{x0,y0},{x1,y1},...\"");
+	args.addArgument("source,i,", "input files (path to metadata.json)");
+	args.addArgument("output,o", "output file, depending on target format. When not set, the result will be written in the stdout.");
+	args.addArgument("coordinates", "coordinates of the profile segments, in the form \"{x0,y0},{x1,y1},...\"");
 	args.addArgument("width", "width of the profile");
-	args.addArgument("output-format", "LAS, LAZ, POTREE");
-	args.addArgument("min-level", "");
-	args.addArgument("max-level", "");
-	args.addArgument("output-attributes", "");
+	args.addArgument("output-format", "LAS, LAZ, CSV, JSON, POTREE (default)");
+	args.addArgument("min-level", "the result will contain points starting from this level");
+	args.addArgument("max-level", "the result will contain points up to this level");
+	args.addArgument("output-attributes", "position, position_projected_profile, rgb, intensity, classification, ... Default: same as input point cloud");
 	args.addArgument("get-candidates", "return number of candidate points");
 
 	if (!args.has("coordinates")) {
@@ -228,6 +200,8 @@ int main(int argc, char** argv) {
 	string strCoordinates = args.get("coordinates").as<string>();
 	vector<string> sources = args.get("source").as<vector<string>>();
 	string targetpath = args.get("output").as<string>();
+	if (targetpath == "") targetpath = "stdout";
+	string format = args.get("output-format").as<string>();
 	double width = args.get("width").as<double>();
 	int minLevel = args.get("min-level").as<int>(0);
 	int maxLevel = args.get("max-level").as<int>(10'000);
@@ -259,14 +233,16 @@ int main(int argc, char** argv) {
 
 		shared_ptr<Writer> writer;
 
-		if (iEndsWith(targetpath, "las") || iEndsWith(targetpath, "laz")) {
-			writer = make_shared<LasWriter>(targetpath, scale, offset, outputAttributes);
-		} else if (iEndsWith(targetpath, "csv")) {
-			writer = make_shared<CsvWriter>(targetpath, outputAttributes);
-		} else if (iEndsWith(targetpath, "potree")) {
+		if (format == "LAS" || iEndsWith(targetpath, "las")) {
+			writer = make_shared<LasWriter>(targetpath, scale, offset, outputAttributes, false);
+		} else if (format == "LAZ" || iEndsWith(targetpath, "laz")) {
+			writer = make_shared<LasWriter>(targetpath, scale, offset, outputAttributes, true);
+		} else if (format == "JSON" || iEndsWith(targetpath, "json")) {
+			writer = make_shared<JsonWriter>(targetpath, outputAttributes, false);
+		} else if (format == "CSV" || iEndsWith(targetpath, "csv")) {
+			writer = make_shared<CsvWriter>(targetpath, outputAttributes, ",", ",");
+		} else if (format == "POTREE" || iEndsWith(targetpath, "potree")) {
 			writer = make_shared<PotreeWriter>(targetpath, scale, offset, outputAttributes);
-		} else if (targetpath == "stdout") {
-			writer = make_shared<PotreeWriter>("stdout", scale, offset, outputAttributes);
 		} else {
 			cout << "ERROR: unkown output format, extension not known: " << targetpath << endl;
 		}

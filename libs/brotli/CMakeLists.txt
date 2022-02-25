@@ -289,10 +289,6 @@ if(NOT BROTLI_DISABLE_TESTS)
   enable_testing()
 
   set(ROUNDTRIP_INPUTS
-    tests/testdata/alice29.txt
-    tests/testdata/asyoulik.txt
-    tests/testdata/lcet10.txt
-    tests/testdata/plrabn12.txt
     c/enc/encode.c
     c/common/dictionary.h
     c/dec/decode.c)
