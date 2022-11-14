@@ -320,6 +320,11 @@ uint32_t dealign24b(uint32_t mortoncode) {
 
 shared_ptr<Points> readNode(bool isBrotliEncoded, Attributes& attributes, string octreePath, Node* node) {
 
+	if(node->numPoints == 0){
+		// encountered empty inner node
+		return nullptr;
+	}
+
 	auto points = make_shared<Points>();
 
 	points->attributes = attributes;
@@ -523,6 +528,8 @@ void loadPoints(string path, Area area, int minLevel, int maxLevel, function<voi
 		bool isBrotliEncoded = jsMetadata["encoding"] == "BROTLI";
 		auto points = readNode(isBrotliEncoded, attributes, octreePath, node);
 
+		if(points == nullptr) return;
+
 		callback(node, points);
 	});
 }
@@ -574,6 +581,8 @@ void filterPointcloud(string path, Area area, int minLevel, int maxLevel, functi
 
 		bool isBrotliEncoded = jsMetadata["encoding"] == "BROTLI";
 		auto points = readNode(isBrotliEncoded, attributes, octreePath, node);
+
+		if(points == nullptr) return;
 
 		int64_t numAccepted = 0;
 		int64_t numRejected = 0;
