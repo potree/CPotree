@@ -89,6 +89,17 @@ vector<function<void(int64_t)>> createAttributeHandlers(laszip_header* header, l
 			mapping["intensity"] = handler;
 		}
 
+		{ // CLASSIFICATION
+			auto attribute = inputAttributes.get("classification");
+			auto source = points->attributeBuffersMap["classification"];
+			auto handler = [point, source, attribute](int64_t index) {
+				uint8_t classification;
+				memcpy(&classification, source->data_u8 + index * attribute->size, 1);
+				point->classification = classification;
+			};
+
+			mapping["classification"] = handler;
+		}
 
 		for (auto& attribute : outputAttributes.list) {
 
