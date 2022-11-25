@@ -320,6 +320,7 @@ uint32_t dealign24b(uint32_t mortoncode) {
 
 shared_ptr<Points> readNode(bool isBrotliEncoded, Attributes& attributes, string octreePath, Node* node) {
 
+
 	if(node->numPoints == 0){
 		// encountered empty inner node
 		return nullptr;
@@ -331,6 +332,23 @@ shared_ptr<Points> readNode(bool isBrotliEncoded, Attributes& attributes, string
 	points->numPoints = node->numPoints;
 
 	auto data = readBinaryFile(octreePath, node->byteOffset, node->byteSize);
+
+	if(node->byteSize == 0 && node->numPoints > 0){
+		//int a = 10;
+		//cout << "WARNING: byteSize(" << node->byteSize << ") and numPoints(" << node->numPoints << ") don't match! "
+		//	<< "Ignoring node(" << node->name << "), results may be corrupted." << endl;
+
+		stringstream ss;
+		ss << endl;
+		ss << "WARNING: byteSize is zero but numPoints is non-zero!" << endl;
+		ss << "file: " << octreePath << endl;
+		ss << "node: " << node->name << endl;
+		ss << "numPoints: " << node->numPoints << ", but byteSize: 0";
+
+		cout << ss.str() << endl;
+
+		return nullptr;
+	}
 
 	if (isBrotliEncoded) {
 
@@ -524,7 +542,8 @@ void loadPoints(string path, Area area, int minLevel, int maxLevel, function<voi
 
 	auto parallel = std::execution::par_unseq;
 	for_each(parallel, clippedNodes.begin(), clippedNodes.end(), [&jsMetadata, octreePath, &attributes, scale, offset, &area, &mtx_accept, &callback](Node* node) {
-
+	// cout << "WARNING: disabled parallel filtering for debugging. " << __FILE__ << ":" << __LINE__ << endl;
+	// for(auto node : clippedNodes){
 		bool isBrotliEncoded = jsMetadata["encoding"] == "BROTLI";
 		auto points = readNode(isBrotliEncoded, attributes, octreePath, node);
 
@@ -578,11 +597,17 @@ void filterPointcloud(string path, Area area, int minLevel, int maxLevel, functi
 
 	auto parallel = std::execution::par_unseq;
 	for_each(parallel, clippedNodes.begin(), clippedNodes.end(), [&jsMetadata, octreePath, &attributes, scale, offset, &area, &mtx_accept, &checked, &accepted, &callback](Node* node) {
+	// cout << "WARNING: disabled parallel filtering for debugging. " << __FILE__ << ":" << __LINE__ << endl;
+	// for(auto node : clippedNodes){
 
 		bool isBrotliEncoded = jsMetadata["encoding"] == "BROTLI";
 		auto points = readNode(isBrotliEncoded, attributes, octreePath, node);
 
 		if(points == nullptr) return;
+
+		if(points->attributeBuffersMap.size() != 9){
+			int a = 10;
+		}
 
 		int64_t numAccepted = 0;
 		int64_t numRejected = 0;

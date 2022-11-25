@@ -73,7 +73,12 @@ vector<function<void(int64_t)>> createAttributeHandlers(laszip_header* header, l
 			auto handler = [point, source, attribute](int64_t index) {
 				auto& rgba = point->rgb;
 
-				memcpy(&rgba, source->data_u8 + index * attribute->size, 6);
+				if(source != nullptr){
+					memcpy(&rgba, source->data_u8 + index * attribute->size, 6);
+				}else{
+					memset(&rgba, 0, 4 * sizeof(laszip_U16));
+				}
+
 			};
 
 			mapping["rgb"] = handler;
@@ -83,7 +88,13 @@ vector<function<void(int64_t)>> createAttributeHandlers(laszip_header* header, l
 			auto attribute = inputAttributes.get("intensity");
 			auto source = points->attributeBuffersMap["intensity"];
 			auto handler = [point, source, attribute](int64_t index) {
-				memcpy(&point->intensity, source->data_u8 + index * attribute->size, 2);
+			
+				if(source != nullptr){
+					memcpy(&point->intensity, source->data_u8 + index * attribute->size, 2);
+				}else{
+					memset(&point->intensity, 0, sizeof(point->intensity));
+				}
+
 			};
 
 			mapping["intensity"] = handler;
@@ -94,7 +105,13 @@ vector<function<void(int64_t)>> createAttributeHandlers(laszip_header* header, l
 			auto source = points->attributeBuffersMap["classification"];
 			auto handler = [point, source, attribute](int64_t index) {
 				uint8_t classification;
-				memcpy(&classification, source->data_u8 + index * attribute->size, 1);
+
+				if(source != nullptr){
+					memcpy(&classification, source->data_u8 + index * attribute->size, 1);
+				}else{
+					classification = 0;
+				}
+
 				point->classification = classification;
 			};
 

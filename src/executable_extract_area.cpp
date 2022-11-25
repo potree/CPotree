@@ -180,7 +180,8 @@ int main(int argc, char** argv) {
 
 		};
 
-		cout << "#accepted: " << totalAccepted << ", #rejected: " << totalRejected << endl;
+		cout << "#accepted: " << formatNumber(totalAccepted) 
+			<< ", #rejected: " << formatNumber(totalRejected) << endl;
 
 		writer->close();
 	}
