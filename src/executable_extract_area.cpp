@@ -18,7 +18,8 @@
 #include "PotreeLoader.h"
 #include "LasWriter.h"
 #include "CsvWriter.h"
-#include "PotreeWriter.h"
+#include "PotreeWriter_v1.h"
+#include "PotreeWriter_v2.h"
 #include "Attributes.h"
 
 using std::string; 
@@ -153,8 +154,10 @@ int main(int argc, char** argv) {
 			writer = make_shared<LasWriter>(targetpath, scale, offset, outputAttributes);
 		} else if (iEndsWith(targetpath, "csv")) {
 			writer = make_shared<CsvWriter>(targetpath, outputAttributes);
-		}  else if (iEndsWith(targetpath, "potree")) {
-			writer = make_shared<PotreeWriter>(targetpath, scale, offset, outputAttributes);
+		} else if (iEndsWith(targetpath, "potree")) {
+			writer = make_shared<PotreeWriter_v1>(targetpath, scale, offset, outputAttributes);
+		} else if (iEndsWith(targetpath, "potree_v2")) {
+			writer = make_shared<PotreeWriter_v2>(targetpath, scale, offset, outputAttributes);
 		} else if(targetpath == "stdout"){
 			cout << "TODO: " << __FILE__ << ":" << __LINE__ << endl;
 			//writer = make_shared<PotreeWriter>(targetpath, scale, offset, outputAttributes);
@@ -177,7 +180,8 @@ int main(int argc, char** argv) {
 
 		};
 
-		cout << "#accepted: " << totalAccepted << ", #rejected: " << totalRejected << endl;
+		cout << "#accepted: " << formatNumber(totalAccepted) 
+			<< ", #rejected: " << formatNumber(totalRejected) << endl;
 
 		writer->close();
 	}

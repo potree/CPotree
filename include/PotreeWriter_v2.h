@@ -34,7 +34,7 @@ using std::lock_guard;
 using std::ofstream;
 
 
-struct PotreeWriter : public Writer {
+struct PotreeWriter_v2 : public Writer {
 
 	string path;
 	Attributes outputAttributes;
@@ -54,7 +54,7 @@ struct PotreeWriter : public Writer {
 
 	vector<Task> backlog;
 
-	PotreeWriter(string path, dvec3 scale, dvec3 offset, Attributes outputAttributes) {
+	PotreeWriter_v2(string path, dvec3 scale, dvec3 offset, Attributes outputAttributes) {
 		this->path = path;
 		this->outputAttributes = outputAttributes;
 	}
