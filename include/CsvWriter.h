@@ -34,69 +34,106 @@ using std::lock_guard;
 using std::ofstream;
 
 
-vector<function<void(int64_t, uint8_t*)>> createAttributeHandlers(shared_ptr<ofstream> stream, Attributes& attributes, Attributes outputAttributes) {
+vector<function<void(int64_t)>> createAttributeHandlers(shared_ptr<ofstream> stream, shared_ptr<Points> points, Attributes outputAttributes) {
 
-	vector<function<void(int64_t, uint8_t*)>> handlers;
+	vector<function<void(int64_t)>> handlers;
+
+	auto& inputAttributes = points->attributes;
 
 	{ // STANDARD LAS ATTRIBUTES
 
-		unordered_map<string, function<void(int64_t, uint8_t*)>> mapping;
+		unordered_map<string, function<void(int64_t)>> mapping;
 
 		{ // POSITION
-			int offset = attributes.getOffset("position");
-			auto handler = [stream, offset, attributes](int64_t index, uint8_t* data) {
+			auto attribute = inputAttributes.get("position");
+			auto buff_position = points->attributeBuffersMap["position"];
+			auto posScale = inputAttributes.posScale;
+			auto posOffset = inputAttributes.posOffset;
+			auto handler = [stream, buff_position, attribute, posScale, posOffset](int64_t index) {
 
 				int32_t X, Y, Z;
 
-				memcpy(&X, data + index * attributes.bytes + offset + 0, 4);
-				memcpy(&Y, data + index * attributes.bytes + offset + 4, 4);
-				memcpy(&Z, data + index * attributes.bytes + offset + 8, 4);
+				memcpy(&X, buff_position->data_u8 + index * attribute->size + 0, 4);
+				memcpy(&Y, buff_position->data_u8 + index * attribute->size + 4, 4);
+				memcpy(&Z, buff_position->data_u8 + index * attribute->size + 8, 4);
 
-				double x = double(X) * attributes.posScale.x + attributes.posOffset.x;
-				double y = double(Y) * attributes.posScale.y + attributes.posOffset.y;
-				double z = double(Z) * attributes.posScale.z + attributes.posOffset.z;
+				double x = double(X) * posScale.x + posOffset.x;
+				double y = double(Y) * posScale.y + posOffset.y;
+				double z = double(Z) * posScale.z + posOffset.z;
 
-				*stream << x << " " << y << " " << z;
+				*stream << x << ", " << y << ", " << z;
 			};
 
 			mapping["position"] = handler;
 		}
 
-		{ // RGB
-			int offset = attributes.getOffset("rgb");
-			auto handler = [stream, offset, attributes](int64_t index, uint8_t* data) {
-				uint16_t rgb[3];
+		 { // RGB
+		 	auto attribute = inputAttributes.get("rgb");
+			auto source = points->attributeBuffersMap["rgb"];
+		 	auto handler = [stream, source, attribute](int64_t index) {
 
-				memcpy(&rgb, data + index * attributes.bytes + offset, 6);
+				if(source){
+					uint16_t rgb[3];
 
-				*stream << " " << rgb[0] << " " << rgb[1] << " " << rgb[2];
-			};
+					memcpy(&rgb, source->data_u8 + index * attribute->size, attribute->size);
 
-			mapping["rgb"] = handler;
-		}
+					*stream << rgb[0] << ", " << rgb[1] << ", " << rgb[2];
+				}else{
+					*stream << "0, 0, 0";
+				}
+
+		 		
+		 	};
+
+		 	mapping["rgb"] = handler;
+		 }
 
 		{ // INTENSITY
-			int offset = attributes.getOffset("intensity");
-			auto handler = [stream, offset, attributes](int64_t index, uint8_t* data) {
-				uint16_t intensity;
-				memcpy(&intensity, data + index * attributes.bytes + offset, 2);
+			auto attribute = inputAttributes.get("intensity");
+			auto source = points->attributeBuffersMap["intensity"];
+			auto handler = [stream, source, attribute](int64_t index) {
+				if(source){
+					uint16_t intensity;
 
-				*stream << " " << intensity;
+					memcpy(&intensity, source->data_u8 + index * attribute->size, attribute->size);
+
+					*stream << intensity;
+				}else{
+					*stream << "0, 0, 0";
+				}
 			};
 
 			mapping["intensity"] = handler;
 		}
 
+		{ // CLASSIFICATION
+			auto attribute = inputAttributes.get("classification");
+			auto source = points->attributeBuffersMap["classification"];
+			auto handler = [stream, source, attribute](int64_t index) {
+				if(source){
+					uint8_t classification;
 
-		*stream << "#";
+					memcpy(&classification, source->data_u8 + index * attribute->size, attribute->size);
+
+					*stream << classification;
+				}else{
+					*stream << "0, 0, 0";
+				}
+			};
+
+			mapping["classification"] = handler;
+		}
+
+
+		// *stream << "#";
 		for (auto& attribute : outputAttributes.list) {
 
 			if (mapping.find(attribute.name) != mapping.end()) {
-				*stream << attribute.name << " ";
+				// *stream << attribute.name << " ";
 				handlers.push_back(mapping[attribute.name]);
 			}
 		}
-		*stream << endl;
+		// *stream << endl;
 
 	}
 
@@ -137,12 +174,36 @@ struct CsvWriter : public Writer {
 		lock_guard<mutex> lock(mtx_write);
 
 		auto inputAttributes = points->attributes;
-		auto handlers = createAttributeHandlers(stream, inputAttributes, outputAttributes);
+		auto handlers = createAttributeHandlers(stream, points, outputAttributes);
 
 		int64_t numPoints = points->numPoints;
 
-		cout << "TODO" << endl;
-		exit(123);
+
+		for (int64_t i = 0; i < numPoints; i++) {
+
+			//for(auto& handler : handlers){
+			for(int j = 0; j < handlers.size(); j++){
+				auto& handler = handlers[j];
+				handler(i);
+
+				if(j < handlers.size() - 1){
+					*stream << ", "; 
+				}
+			}
+
+			*stream << "\n";
+		}
+
+
+		// for(int i = 0; i < numPoints; i++){
+		
+		// 	string line = std::format("");
+
+		// }
+
+
+		//cout << "TODO" << endl;
+		//exit(123);
 
 		//int posOffset = inputAttributes.getOffset("position");
 
