@@ -85,10 +85,10 @@ target_include_directories(extract_profile PRIVATE "./libs")
 
 if (UNIX)
 	find_package(Threads REQUIRED)
-	find_package(TBB REQUIRED)
+#	find_package(TBB REQUIRED)
 	
 	target_link_libraries(extract_profile Threads::Threads)
-	target_link_libraries(extract_profile tbb)
+#	target_link_libraries(extract_profile tbb)
 endif (UNIX)
 
 buildLicenses(extract_profile)
@@ -117,10 +117,10 @@ target_include_directories(extract_area PRIVATE "./libs")
 
 if (UNIX)
 	find_package(Threads REQUIRED)
-	find_package(TBB REQUIRED)
+#	find_package(TBB REQUIRED)
 	
 	target_link_libraries(extract_area Threads::Threads)
-	target_link_libraries(extract_area tbb)
+#	target_link_libraries(extract_area tbb)
 endif (UNIX)
 
 buildLicenses(extract_area)
