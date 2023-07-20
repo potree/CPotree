@@ -77,7 +77,11 @@ vector<function<void(int64_t)>> createAttributeHandlers(shared_ptr<ofstream> str
 
 					memcpy(&rgb, source->data_u8 + index * attribute->size, attribute->size);
 
-					*stream << rgb[0] << ", " << rgb[1] << ", " << rgb[2];
+					uint32_t R = rgb[0] > 255 ? rgb[0] / 256 : rgb[0];
+					uint32_t G = rgb[1] > 255 ? rgb[1] / 256 : rgb[1];
+					uint32_t B = rgb[2] > 255 ? rgb[2] / 256 : rgb[2];
+
+					*stream << R << ", " << G << ", " << B;
 				}else{
 					*stream << "0, 0, 0";
 				}
