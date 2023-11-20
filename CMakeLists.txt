@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 set(CMAKE_SUPPRESS_REGENERATION true)
 
+option(WITH_AWS_SDK "Build with AWS SDK" OFF)
+
 project(CPotree LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -24,6 +26,15 @@ set(BROTLI_DIR "${PROJECT_SOURCE_DIR}/libs/brotli")
 
 add_subdirectory(${LASZIP_DIR})
 add_subdirectory(${BROTLI_DIR})
+
+#######################
+# Initialize AWS SDK
+#######################
+
+if (WITH_AWS_SDK)
+	add_definitions(-DWITH_AWS_SDK)
+	find_package(AWSSDK REQUIRED COMPONENTS s3)
+endif (WITH_AWS_SDK)
 
 ###############################################
 # COPY LICENSE FILES TO BINARY DIRECTORY
@@ -75,6 +86,11 @@ add_executable(extract_profile
 	./src/executable_extract_profile.cpp
 )
 
+
+if (WITH_AWS_SDK)
+target_link_libraries(extract_profile ${AWSSDK_LINK_LIBRARIES} ${AWSSDK_PLATFORM_DEPS})
+endif (WITH_AWS_SDK)
+
 target_link_libraries(extract_profile laszip)
 target_link_libraries(extract_profile brotlienc-static)
 target_link_libraries(extract_profile brotlidec-static)
@@ -106,6 +122,10 @@ add_executable(extract_area
 	./modules/unsuck/unsuck_platform_specific.cpp
 	./src/executable_extract_area.cpp
 )
+
+if (WITH_AWS_SDK)
+target_link_libraries(extract_area ${AWSSDK_LINK_LIBRARIES} ${AWSSDK_PLATFORM_DEPS})
+endif (WITH_AWS_SDK)
 
 target_link_libraries(extract_area laszip)
 target_link_libraries(extract_area brotlienc-static)

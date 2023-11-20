@@ -22,6 +22,10 @@
 #include "PotreeWriter_v2.h"
 #include "Attributes.h"
 
+#if WITH_AWS_SDK
+#include <aws/core/Aws.h>
+#endif
+
 using std::string; 
 using std::function;
 using std::shared_ptr;
@@ -112,7 +116,12 @@ int main(int argc, char** argv) {
 
 	Arguments args(argc, argv);
 
+	args.addArgument("help,h", "show this help message and exit");
+	#ifdef WITH_AWS_SDK
+	args.addArgument("source,i,", "input files (Uses S3 if path starts with 's3://<bucket>/<path>')");
+	#else
 	args.addArgument("source,i,", "input files");
+	#endif
 	args.addArgument("output,o", "output file or directory, depending on target format");
 	args.addArgument("area", "clip area");
 	args.addArgument("output-format", "LAS, LAZ, POTREE");
@@ -120,6 +129,11 @@ int main(int argc, char** argv) {
 	args.addArgument("max-level", "");
 	args.addArgument("output-attributes", "");
 	args.addArgument("get-candidates", "return number of candidate points");
+
+	if (args.has("help")) {
+		cout << args.usage() << endl;
+		exit(0);
+	}
 
 	string strArea = args.get("area").as<string>();
 	vector<string> sources = args.get("source").as<vector<string>>();
@@ -129,7 +143,22 @@ int main(int argc, char** argv) {
 
 	Area area = parseArea(strArea);
 
-	sources = curateSources(sources);
+	bool use_aws_sdk = false;
+#ifdef WITH_AWS_SDK
+	for (string path : sources) {
+		if (path.find("s3://") == 0) {
+			use_aws_sdk = true;
+			break;
+		}
+	}
+	Aws::SDKOptions options;
+	if (use_aws_sdk) {
+		Aws::InitAPI(options);
+	}
+#endif
+	if (!use_aws_sdk) {
+		sources = curateSources(sources);
+	}
 	auto stats = computeStats(sources);
 
 	Attributes outputAttributes = computeAttributes(args);
@@ -186,6 +215,11 @@ int main(int argc, char** argv) {
 		writer->close();
 	}
 
+#ifdef WITH_AWS_SDK
+	if (use_aws_sdk) {
+		Aws::ShutdownAPI(options);
+	}
+#endif
 
 	printElapsedTime("duration", tStart);
 
