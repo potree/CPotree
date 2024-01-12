@@ -1,0 +1,17 @@
+name: Build
+
+on:
+  - push
+
+jobs:
+  main:
+    name: Build with AWS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - run: docker build --file=Dockerfile --tag=test .
+      - run: docker run test extract_profile --help && docker run test extract_area --help
+
+      - run: docker build --file=Dockerfile-aws --tag=aws .
+      - run: docker run aws extract_profile --help && docker run aws extract_area --help

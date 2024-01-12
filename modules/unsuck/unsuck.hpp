@@ -33,6 +33,12 @@ using std::shared_ptr;
 using std::make_shared;
 using std::chrono::high_resolution_clock;
 
+#ifdef WITH_AWS_SDK
+#include <aws/core/Aws.h>
+#include <aws/s3/S3Client.h>
+#include <aws/s3/model/GetObjectRequest.h>
+#endif
+
 namespace fs = std::filesystem;
 
 static long long unsuck_start_time = high_resolution_clock::now().time_since_epoch().count();
@@ -364,8 +370,65 @@ inline bool iEndsWith(const std::string& str, const std::string& suffix) {
 	return icompare(tstr, suffix);
 }
 
+#ifdef WITH_AWS_SDK
+inline string readAWSS3(string path, string range) {
+	auto no_proto = path.substr(5);
+	auto parts = split(no_proto, '/');
+	auto bucket = parts[0];
+	auto key = no_proto.substr(bucket.size() + 1);
+	if (std::getenv("DEBUG") == "TRUE") {
+		cout << "bucket: " << bucket << endl;
+		cout << "key: " << key << endl;
+	}
+
+	auto clientConfig = Aws::Client::ClientConfiguration();
+	if (const char* env_p = std::getenv("AWS_ENDPOINT_URL")) {
+		clientConfig.endpointOverride = env_p;
+	}
+	else if (const char* env_p = std::getenv("AWS_ENDPOINT_URL_S3")) {
+		clientConfig.endpointOverride = env_p;
+	}
+	auto client = Aws::S3::S3Client(clientConfig);
+	auto request = Aws::S3::Model::GetObjectRequest();
+	request.SetBucket(bucket.c_str());
+	request.SetKey(key.c_str());
+	if (!range.empty()) {
+		if (std::getenv("DEBUG") == "TRUE") {
+			cout << "range: " << range << endl;
+		}
+		request.SetRange(range.c_str());
+	}
+
+	auto outcome = client.GetObject(request);
+
+	if (outcome.IsSuccess()) {
+		auto& stream = outcome.GetResult().GetBody();
+		std::stringstream ss;
+		ss << stream.rdbuf();
+
+		return ss.str();
+	} else {
+		auto error = outcome.GetError();
+		std::cerr << "ERROR: " << error.GetExceptionName() << ": " << error.GetMessage() << std::endl;
+		exit(1);
+	}
+
+	std::stringstream ss;
+
+	return ss.str();
+
+}
+#endif
+
 // taken from: https://stackoverflow.com/questions/2602013/read-whole-ascii-file-into-c-stdstring/2602060
 inline string readTextFile(string path) {
+
+#ifdef WITH_AWS_SDK
+	// if path starts with s3://, download the file from s3
+	if (path.starts_with("s3://")) {
+		return readAWSS3(path, string());
+	}
+#endif
 
 	std::ifstream t(path);
 	std::string str;
@@ -394,6 +457,18 @@ inline string readTextFile(string path) {
 // }
 
 inline shared_ptr<Buffer> readBinaryFile(string path) {
+
+#ifdef WITH_AWS_SDK
+	// if path starts with s3://, download the file from s3
+	if (path.find("s3://") == 0) {
+		auto str = readAWSS3(path, string());
+
+		auto buffer = make_shared<Buffer>(str.size());
+		memcpy(buffer->data, str.data(), str.size());
+
+		return buffer;
+	}
+#endif
 
 	auto file = fopen(path.c_str(), "rb");
 	auto size = fs::file_size(path);
@@ -448,8 +523,20 @@ inline shared_ptr<Buffer> readBinaryFile(string path) {
 
 inline vector<uint8_t> readBinaryFile(string path, uint64_t start, uint64_t size) {
 
-	//ifstream file(path, ios::binary);	
-	
+#ifdef WITH_AWS_SDK
+	// if path starts with s3://, download the file from s3
+	if (path.find("s3://") == 0) {
+		auto str = readAWSS3(path, "bytes=" + to_string(start) + "-" + to_string(start + size - 1));
+
+		vector<uint8_t> buffer(str.size());
+		memcpy(buffer.data(), str.data(), str.size());
+
+		return buffer;
+	}
+#endif
+
+	//ifstream file(path, ios::binary);
+
 	// the fopen version seems to be quite a bit faster than ifstream
 	auto file = fopen(path.c_str(), "rb");
 
@@ -481,6 +568,18 @@ inline vector<uint8_t> readBinaryFile(string path, uint64_t start, uint64_t size
 }
 
 inline void readBinaryFile(string path, uint64_t start, uint64_t size, void* target) {
+
+#ifdef WITH_AWS_SDK
+	// if path starts with s3://, download the file from s3
+	if (path.find("s3://") == 0) {
+		auto str = readAWSS3(path, "bytes=" + to_string(start) + "-" + to_string(start + size - 1));
+
+		memcpy(target, str.data(), str.size());
+
+		return;
+	}
+#endif
+
 	auto file = fopen(path.c_str(), "rb");
 
 	auto totalSize = fs::file_size(path);
@@ -518,7 +617,7 @@ inline void writeBinaryFile(string path, vector<T>& data) {
 		offset += batchSize;
 		remaining -= batchSize;
 	}
-	
+
 
 	of.close();
 }

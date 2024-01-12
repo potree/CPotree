@@ -25,6 +25,10 @@
 #include "PotreeWriter_v2.h"
 #include "Attributes.h"
 
+#if WITH_AWS_SDK
+#include <aws/core/Aws.h>
+#endif
+
 using std::set;
 using std::string;
 using std::function;
@@ -57,10 +61,10 @@ Attributes computeAttributes(Arguments& args, vector<string> sources) {
 			attribute.numElements = jsAttribute["numElements"];
 			attribute.elementSize = jsAttribute["elementSize"];
 			attribute.type = typenameToType(jsAttribute["type"]);
-			
+
 			attribute.min.x = jsAttribute["min"][0];
 			attribute.max.x = jsAttribute["max"][0];
-			
+
 			if (jsAttribute["min"].size() > 1) {
 				attribute.min.y = jsAttribute["min"][1];
 				attribute.max.y = jsAttribute["max"][1];
@@ -206,7 +210,12 @@ int main(int argc, char** argv) {
 
 	Arguments args(argc, argv);
 
+	args.addArgument("help,h", "show this help message and exit");
+#ifdef WITH_AWS_SDK
+	args.addArgument("source,i,", "input files (Uses S3 if path starts with 's3://<bucket>/<path>')");
+#else
 	args.addArgument("source,i,", "input files");
+#endif
 	args.addArgument("output,o", "output file or directory, depending on target format");
 	args.addArgument("coordinates", "coordinates of the profile segments. in the form \"{x0,y0},{x1,y1},...\"");
 	args.addArgument("width", "width of the profile");
@@ -215,6 +224,11 @@ int main(int argc, char** argv) {
 	args.addArgument("max-level", "");
 	args.addArgument("output-attributes", "");
 	args.addArgument("get-candidates", "return number of candidate points");
+
+	if (args.has("help")) {
+		cout << args.usage() << endl;
+		exit(0);
+	}
 
 	if (!args.has("coordinates")) {
 		GENERATE_ERROR_MESSAGE << "missing argument: --coordinates \"{x0,y0},{x1,y1},...\"" << endl;
@@ -237,7 +251,23 @@ int main(int argc, char** argv) {
 	Area area;
 	area.profiles = { profile };
 
-	sources = curateSources(sources);
+	bool use_aws_sdk = false;
+#ifdef WITH_AWS_SDK
+	for (string path : sources) {
+		if (path.starts_with("s3://")) {
+			use_aws_sdk = true;
+			break;
+		}
+	}
+	Aws::SDKOptions options;
+	if (use_aws_sdk) {
+		// options.loggingOptions.logLevel = Aws::Utils::Logging::LogLevel::Trace;
+		Aws::InitAPI(options);
+	}
+#endif
+	if (!use_aws_sdk) {
+		sources = curateSources(sources);
+	}
 	auto stats = computeStats(sources);
 
 	Attributes outputAttributes = computeAttributes(args, sources);
@@ -296,7 +326,7 @@ int main(int argc, char** argv) {
 
 
 				//auto rgb = points->attributeBuffersMap["rgb"];
-				
+
 				Attribute attribute_position_projected("position_projected_profile", 8, 2, 4, AttributeType::INT32);
 				shared_ptr<Buffer> buffer_position_projected = make_shared<Buffer>(8 * points->numPoints);
 
@@ -375,7 +405,7 @@ int main(int argc, char** argv) {
 				//	ss << std::this_thread::get_id() << ": loadPoints() end" << endl;
 				//	cout << ss.str();
 				//}
-				
+
 			});
 
 		};
@@ -383,11 +413,16 @@ int main(int argc, char** argv) {
 		//cout << "#accepted: " << totalAccepted << ", #rejected: " << totalRejected << endl;
 
 		writer->close();
+
 	}
 
+#ifdef WITH_AWS_SDK
+	if (use_aws_sdk) {
+		Aws::ShutdownAPI(options);
+	}
+#endif
 
 	//printElapsedTime("duration", tStart);
-
 
 	return 0;
 }

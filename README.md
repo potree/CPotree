@@ -19,6 +19,10 @@ cmake ../
 * Make sure "Release" build is selected.
 * Build "extract_profile".
 
+## Build options
+
+* `WITH_AWS_SDK`: Build with s3 support. Requires AWS SDK.
+
 
 # Usage
 
