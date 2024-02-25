@@ -9,6 +9,21 @@ cmake ../
 make
 ```
 
+__Linux (manual build):__
+
+Tested on Ubuntu 22.04 LTS
+
+Install required packages
+```
+apt install build-essential libbrotli-dev liblaszip-dev
+```
+Build binaries
+```
+cd src
+g++ -std=c++20 -I../include/ -I../modules -idirafter../libs executable_extract_area.cpp ../modules/unsuck/unsuck_platform_specific.cpp -lbrotlidec -llaszip -o extract_area
+g++ -std=c++20 -I../include/ -I../modules -idirafter../libs executable_extract_profile.cpp ../modules/unsuck/unsuck_platform_specific.cpp -lbrotlidec -llaszip -o extract_profile
+```
+
 __Windows:__
 ```
 mkdir build
