@@ -1,3 +1,8 @@
+# Installation
+Arch Linux users can install CPotree from [AUR](https://aur.archlinux.org/packages/cpotree), e.g.:
+```
+yay -S cpotree
+```
 
 # Build
 
