@@ -118,6 +118,85 @@ vector<function<void(int64_t)>> createAttributeHandlers(laszip_header* header, l
 			mapping["classification"] = handler;
 		}
 
+		{ // RETURN NUMBER
+			auto attribute = inputAttributes.get("return number");
+			auto source = points->attributeBuffersMap["return number"];
+			auto handler = [point, source, attribute](int64_t index) {
+				uint8_t returnNumber;
+				if (source != nullptr) {
+					memcpy(&returnNumber, source->data_u8 + index * attribute->size, 1);
+				}
+				else {
+					returnNumber = 0;
+				}
+				point->return_number = returnNumber;
+			};
+			mapping["return number"] = handler;
+		}
+
+		{ // NUMBER OF RETURNS
+			auto attribute = inputAttributes.get("number of returns");
+			auto source = points->attributeBuffersMap["number of returns"];
+			auto handler = [point, source, attribute](int64_t index) {
+				uint8_t numberofReturns;
+				if (source != nullptr) {
+					memcpy(&numberofReturns, source->data_u8 + index * attribute->size, 1);
+				}
+				else {
+					numberofReturns = 0;
+				}
+				point->number_of_returns = numberofReturns;
+			};
+			mapping["number of returns"] = handler;
+		}
+
+		{ // USER DATA 
+			auto attribute = inputAttributes.get("user data");
+			auto source = points->attributeBuffersMap["user data"];
+			auto handler = [point, source, attribute](int64_t index) {
+				uint8_t userdata;
+				if (source != nullptr) {
+					memcpy(&userdata, source->data_u8 + index * attribute->size, 1);
+				}
+				else {
+					userdata = 0;
+				}
+				point->user_data = userdata;
+			};
+			mapping["user data"] = handler;
+		}
+
+		{ // POINT SOURCE ID
+			auto attribute = inputAttributes.get("point source id");
+			auto source = points->attributeBuffersMap["point source id"];
+			auto handler = [point, source, attribute](int64_t index) {
+				if (source != nullptr) {
+					memcpy(&point->point_source_ID, source->data_u8 + index * attribute->size, 2);
+				}
+				else {
+					memset(&point->point_source_ID, 0, sizeof(point->point_source_ID));
+				}
+			};
+			mapping["point source id"] = handler;
+		}
+
+		{ //GPS-TIME
+			auto attribute = inputAttributes.get("gps-time");
+			auto source = points->attributeBuffersMap["gps-time"];
+			auto handler = [point, source, attribute](int64_t index) {
+				double gpstime;
+				if (source != nullptr) {
+					memcpy(&gpstime, source->data_f64, 8);
+				}
+				else {
+					gpstime = 0.00000;
+				}
+				point->gps_time = gpstime;
+			};
+			mapping["gps-time"] = handler;
+		}
+
+
 		for (auto& attribute : outputAttributes.list) {
 
 			if (mapping.find(attribute.name) != mapping.end()) {
@@ -159,7 +238,7 @@ struct LasWriter : public Writer {
 		header.version_minor = 4;
 		header.header_size = 375;
 		header.offset_to_point_data = 375;
-		header.point_data_format = 2;
+		header.point_data_format = 3;
 
 		header.min_x = aabb.min.x;
 		header.min_y = aabb.min.y;
@@ -176,7 +255,7 @@ struct LasWriter : public Writer {
 		header.y_offset = offset.y;
 		header.z_offset = offset.z;
 
-		header.point_data_record_length = 26;
+		header.point_data_record_length = 34;
 		//header.number_of_point_records = 111; // must be updated at the end
 		header.extended_number_of_point_records = 0;
 
